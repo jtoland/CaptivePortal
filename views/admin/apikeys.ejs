@@ -1,0 +1,71 @@
+<%- include('partials/head', { title: 'API access' }) %>
+<div class="page-head"><div><h1>API access</h1><p class="muted">Let other systems generate and read vouchers over a simple REST API.</p></div></div>
+
+<% if (error) { %><div class="flash err"><%- icon('alert', 16) %><span><%= error %></span></div><% } %>
+
+<% if (created) { %>
+  <div class="onetime">
+    <div class="onetime-head"><%- icon('key', 18) %><b>API key created: <%= created.label %></b></div>
+    <p>Copy it now. <b>It won't be shown again.</b> This key is <b><%= created.scope === 'write' ? 'read &amp; write' : 'read-only' %></b>.</p>
+    <span class="copy-field big"><code><%= created.token %></code><button type="button" class="copy-btn" data-copy="<%= created.token %>" title="Copy key"><%- icon('copy', 16) %></button></span>
+  </div>
+<% } %>
+
+<section class="card flush">
+  <div class="card-head pad"><h2>Keys</h2></div>
+  <div class="table-wrap plain">
+    <table class="table">
+      <thead><tr><th>Name</th><th>Access</th><th>Starts with</th><th>Last used</th><th>Requests</th><th>Status</th><th class="right"></th></tr></thead>
+      <tbody>
+      <% if (!keys.length) { %><tr><td colspan="7"><div class="empty"><%- icon('key', 22) %><p>No API keys yet. Create one below.</p></div></td></tr><% } %>
+      <% keys.forEach(function (k) { %>
+        <tr class="<%= k.disabled ? 'dim' : '' %>">
+          <td><b><%= k.label || '(no name)' %></b><div class="muted small">by <%= k.created_by || '—' %>, <%= fmtAgo(k.created_at) %></div></td>
+          <td><span class="pill"><%= k.scope === 'write' ? 'Read & write' : 'Read-only' %></span></td>
+          <td><code><%= k.prefix %>…</code></td>
+          <td class="nowrap"><%= k.last_used_at ? fmtAgo(k.last_used_at) : 'Never' %></td>
+          <td><%= k.uses %></td>
+          <td><%- k.disabled ? '<span class="status">Disabled</span>' : '<span class="status ok">Active</span>' %></td>
+          <td class="right nowrap">
+            <form method="post" action="/admin/apikeys/<%= k.id %>/toggle" class="inline-form"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn sm"><%= k.disabled ? 'Enable' : 'Disable' %></button></form>
+            <form method="post" action="/admin/apikeys/<%= k.id %>/delete" class="inline-form" data-confirm="Delete this API key? Anything using it stops working."><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn sm danger">Delete</button></form>
+          </td>
+        </tr>
+      <% }) %>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="card">
+  <div class="card-head"><h2>Create a key</h2><p class="muted">The key is shown once. Keep it secret: anyone with it can use the API.</p></div>
+  <form method="post" action="/admin/apikeys" class="inline-row">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <label class="grow">Name <input name="label" placeholder="e.g. Reception booking system" required></label>
+    <label>Access
+      <select name="scope"><option value="read">Read-only (view vouchers)</option><option value="write">Read &amp; write (generate + view)</option></select></label>
+    <button class="btn primary"><%- icon('plus', 16) %>Create key</button>
+  </form>
+</section>
+
+<section class="card">
+  <div class="card-head"><h2>Using the API</h2></div>
+  <p class="muted">Send your key in the <code>Authorization</code> header. Base URL: <code><%= base %>/api</code></p>
+  <div class="api-docs">
+    <h3>Generate vouchers</h3>
+    <pre><code>curl -X POST <%= base %>/api/v1/vouchers \
+  -H "Authorization: Bearer YOUR_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"count": 5, "duration": 1, "duration_unit": "days", "max_uses": 1, "batch": "Front desk"}'</code></pre>
+    <p class="muted small">Fields: <code>count</code>, <code>duration</code> + <code>duration_unit</code> (minutes/hours/days) or <code>minutes</code>, <code>max_uses</code> (0 = unlimited), <code>valid_days</code>, <code>up_kbps</code>, <code>down_kbps</code>, <code>data_mb</code>, <code>profile_id</code>, <code>note</code>, <code>batch</code>, <code>length</code>. Returns the created codes.</p>
+    <h3>List vouchers</h3>
+    <pre><code>curl <%= base %>/api/v1/vouchers?status=unused \
+  -H "Authorization: Bearer YOUR_KEY"</code></pre>
+    <p class="muted small"><code>status</code>: all, unused, active, used, expired, disabled. <code>batch</code> and <code>limit</code> also work.</p>
+    <h3>View one voucher</h3>
+    <pre><code>curl <%= base %>/api/v1/vouchers/XXXX-XXXX \
+  -H "Authorization: Bearer YOUR_KEY"</code></pre>
+    <p class="muted small">Also: <code>POST /api/v1/vouchers/XXXX-XXXX/disable</code> and <code>/enable</code> (write keys). Limit: 120 requests per minute per key.</p>
+  </div>
+</section>
+<%- include('partials/foot') %>

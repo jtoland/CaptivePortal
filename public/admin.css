@@ -448,3 +448,8 @@ input[type=file] { display: block; margin-top: 6px; height: auto !important; pad
 .maint-toggle { margin-top: 10px; border-top: 1px solid var(--line-2); border-bottom: 0; padding-top: 10px; }
 .maint-toggle.is-on .m-ico { color: var(--warn); filter: none; opacity: 1; }
 .maint-card.on { border-color: #f6e0a8; background: var(--warn-soft); }
+
+/* ---------- API docs ---------- */
+.api-docs h3 { margin: 18px 0 6px; font-size: 14px; }
+.api-docs pre { background: #0b1120; color: #e2e8f0; border-radius: 10px; padding: 14px 16px; overflow-x: auto; font-size: 12.5px; line-height: 1.5; margin: 0; }
+.api-docs pre code { background: none; color: inherit; padding: 0; }

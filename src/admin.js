@@ -385,14 +385,9 @@ router.get('/api/uploads', (req, res) => {
 });
 
 // ---------- vouchers ----------
-const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-function newCode(len) {
-  const bytes = crypto.randomBytes(len);
-  let s = '';
-  for (let i = 0; i < len; i++) s += ALPHABET[bytes[i] % ALPHABET.length];
-  return s;
-}
-const fmtCode = (c) => c.replace(/(.{4})(?=.)/g, '$1-');
+const vouchers = require('./vouchers');
+const fmtCode = vouchers.format;
+const newCode = vouchers.newCode;
 
 router.get('/vouchers', (req, res) => {
   const batch = String(req.query.batch || '');
@@ -401,38 +396,17 @@ router.get('/vouchers', (req, res) => {
   let rows = batch
     ? db.prepare('SELECT * FROM vouchers WHERE batch = ? ORDER BY id DESC').all(batch)
     : db.prepare('SELECT * FROM vouchers ORDER BY id DESC LIMIT 1000').all();
-  rows = rows.map((v) => {
-    let st = 'unused';
-    if (!v.enabled) st = 'disabled';
-    else if ((v.valid_until && v.valid_until < t) || (v.first_used_at && v.first_used_at + v.minutes * 60 <= t)) st = 'expired';
-    else if (v.max_uses > 0 && v.uses >= v.max_uses) st = 'used';
-    else if (v.uses > 0) st = 'active';
-    return { ...v, status: st, display: fmtCode(v.code) };
-  }).filter((v) => status === 'all' || v.status === status);
+  rows = rows.map((v) => ({ ...v, status: vouchers.status(v, t), display: fmtCode(v.code) }))
+    .filter((v) => status === 'all' || v.status === status);
   const batches = db.prepare("SELECT batch, COUNT(*) n, MAX(created_at) at FROM vouchers WHERE batch != '' GROUP BY batch ORDER BY at DESC LIMIT 50").all();
   res.render('admin/vouchers', { rows, batches, batch, status, profiles: profiles.all() });
 });
 
 router.post('/vouchers', (req, res) => {
-  const int = (v, d = 0) => Math.max(0, parseInt(v, 10) || d);
-  const count = Math.min(1000, Math.max(1, int(req.body.count, 1)));
-  const len = Math.min(16, Math.max(6, int(req.body.length, 8)));
-  const unit = { minutes: 1, hours: 60, days: 1440 }[req.body.duration_unit] || 1;
-  const minutes = Math.max(1, int(req.body.duration, 1) * unit);
-  const profileId = req.body.profile_id ? Number(req.body.profile_id) : null;
-  const validDays = int(req.body.valid_days);
-  const batch = String(req.body.batch || '').trim() || `Batch ${new Date().toISOString().slice(0, 16).replace('T', ' ')}`;
-  const insert = db.prepare(`INSERT OR IGNORE INTO vouchers(code, profile_id, minutes, max_uses, data_mb, up_kbps, down_kbps, note, batch, valid_until)
-    VALUES(?,?,?,?,?,?,?,?,?,?)`);
-  let made = 0;
-  db.transaction(() => {
-    while (made < count) {
-      const r = insert.run(newCode(len), profileId, minutes, int(req.body.max_uses, 1), int(req.body.data_mb), int(req.body.up_kbps),
-        int(req.body.down_kbps), String(req.body.note || ''), batch, validDays ? now() + validDays * 86400 : null);
-      made += r.changes;
-    }
-  })();
-  back(res, `/admin/vouchers?batch=${encodeURIComponent(batch)}`, `Created ${made} voucher(s)`);
+  try {
+    const r = vouchers.generate(req.body);
+    back(res, `/admin/vouchers?batch=${encodeURIComponent(r.batch)}`, `Created ${r.created} voucher(s)`);
+  } catch (e) { back(res, '/admin/vouchers', '', e.message); }
 });
 
 router.post('/vouchers/:id/toggle', (req, res) => {
@@ -964,6 +938,28 @@ router.post('/users/security', (req, res) => {
   const on = req.body.require_2fa === 'on';
   accounts.setSecurity({ require_2fa: on });
   back(res, '/admin/users', on ? 'Two-factor is now required for everyone. Anyone without it will set it up at their next sign-in, starting with you if needed.' : 'Two-factor is no longer required for everyone.');
+});
+
+// ---------- API keys (for the vouchers API) ----------
+const apikeys = require('./apikeys');
+function renderApiKeys(res, extra = {}) {
+  res.render('admin/apikeys', { keys: apikeys.all(), created: null, base: res.req.protocol + '://' + res.req.get('host'), error: '', ...extra });
+}
+router.get('/apikeys', (req, res) => renderApiKeys(res));
+router.post('/apikeys', (req, res) => {
+  const label = String(req.body.label || '').trim();
+  if (!label) return renderApiKeys(res.status(400), { error: 'Give the key a name so you remember what it\u2019s for.' });
+  const { token } = apikeys.create({ label, scope: req.body.scope === 'write' ? 'write' : 'read', createdBy: req.user.username });
+  renderApiKeys(res, { created: { token, label, scope: req.body.scope === 'write' ? 'write' : 'read' } });
+});
+router.post('/apikeys/:id/toggle', (req, res) => {
+  const k = apikeys.all().find((x) => x.id === Number(req.params.id));
+  if (k) apikeys.setDisabled(k.id, !k.disabled);
+  back(res, '/admin/apikeys', k ? `Key "${k.label}" ${k.disabled ? 'enabled' : 'disabled'}.` : '');
+});
+router.post('/apikeys/:id/delete', (req, res) => {
+  apikeys.remove(Number(req.params.id));
+  back(res, '/admin/apikeys', 'API key deleted.');
 });
 
 module.exports = router;

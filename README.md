@@ -64,6 +64,7 @@ self-hosted controller with a USG).
 - Multiple admin accounts, auto-generated passwords, and **two-factor sign-in** (authenticator apps plus recovery codes)
 - **HTTPS certificates**: automatic Let's Encrypt via your DNS provider's API (MyDNSHost, Cloudflare, Route 53, Azure DNS, Google Cloud DNS, DigitalOcean, Hetzner, Gandi), a manual DNS record, or upload your own
 - **Backup and restore** of everything, with encrypted downloads and daily automatic backups
+- **Vouchers API**: a simple REST API (with managed API keys) to generate, list and view vouchers from other systems
 
 ---
 
@@ -246,6 +247,36 @@ the portal, and restore a backup.
 
 ---
 
+## Vouchers API
+
+Other systems (a booking system, a kiosk, a script) can generate and read vouchers over a small REST API.
+
+Create keys under **Settings → API access**. Each key is **read-only** or **read &amp; write**, is shown once, and can be
+disabled or deleted. Send it as `Authorization: Bearer <key>`. Limit: 120 requests per minute per key.
+
+```bash
+# Generate 5 one-day vouchers
+curl -X POST https://wifi.example.com/api/v1/vouchers \
+  -H "Authorization: Bearer cpk_..." -H "Content-Type: application/json" \
+  -d '{"count": 5, "duration": 1, "duration_unit": "days", "max_uses": 1, "batch": "Front desk"}'
+
+# List unused vouchers
+curl "https://wifi.example.com/api/v1/vouchers?status=unused" -H "Authorization: Bearer cpk_..."
+
+# View one voucher
+curl https://wifi.example.com/api/v1/vouchers/XXXX-XXXX -H "Authorization: Bearer cpk_..."
+```
+
+| Endpoint | Scope | Purpose |
+|---|---|---|
+| `POST /api/v1/vouchers` | write | Generate a batch; returns the codes |
+| `GET /api/v1/vouchers` | read | List (filters: `status`, `batch`, `limit`) |
+| `GET /api/v1/vouchers/:code` | read | View one voucher |
+| `POST /api/v1/vouchers/:code/{enable,disable}` | write | Enable or disable a voucher |
+
+Generate fields: `count`, `duration` + `duration_unit` (minutes/hours/days) or `minutes`, `max_uses` (0 = unlimited),
+`valid_days`, `up_kbps`, `down_kbps`, `data_mb`, `profile_id`, `note`, `batch`, `length`.
+
 ## Security
 
 - **Admin access:** devices on hotspot (guest) SSIDs can't open `/admin`. Optionally allow only specific networks (**Settings → Account → Who can open the admin**). Once a certificate is active, `/admin` always uses HTTPS.
@@ -289,6 +320,9 @@ src/
   accounts.js      Admin accounts, generated passwords, two-factor
   totp.js          RFC 6238 one-time codes
   backup.js        Encrypted backups and restore
+  api.js           Vouchers REST API
+  apikeys.js       API key storage and verification
+  vouchers.js      Shared voucher logic (used by the UI and the API)
   grace.js         Temporary internet while signing in
   ssidsync.js      SSID auto-discovery
   templates.js     Page templates

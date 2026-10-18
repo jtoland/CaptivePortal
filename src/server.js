@@ -38,6 +38,7 @@ app.use('/uploads', express.static(path.join(DATA_DIR, 'uploads'), {
 app.get('/healthz', (req, res) => res.json({ ok: true }));
 
 
+app.use('/api', require('./api'));
 app.use('/admin', require('./admin'));
 app.use('/', require('./portal'));
 

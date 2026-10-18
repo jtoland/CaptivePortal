@@ -116,6 +116,19 @@ const profileCols = db.prepare('PRAGMA table_info(profiles)').all().map((c) => c
 if (!profileCols.includes('auto_created')) db.exec('ALTER TABLE profiles ADD COLUMN auto_created INTEGER NOT NULL DEFAULT 0');
 const sessionCols = db.prepare('PRAGMA table_info(sessions)').all().map((c) => c.name);
 for (const col of ['device_name', 'device_vendor', 'user_agent']) if (!sessionCols.includes(col)) db.exec(`ALTER TABLE sessions ADD COLUMN ${col} TEXT`);
+
+db.exec(`CREATE TABLE IF NOT EXISTS api_keys (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  label TEXT NOT NULL DEFAULT '',
+  prefix TEXT NOT NULL,
+  token_hash TEXT NOT NULL,
+  scope TEXT NOT NULL DEFAULT 'read',
+  created_at INTEGER NOT NULL,
+  created_by TEXT,
+  last_used_at INTEGER,
+  uses INTEGER NOT NULL DEFAULT 0,
+  disabled INTEGER NOT NULL DEFAULT 0
+)`);
 const adminCols = db.prepare('PRAGMA table_info(admins)').all().map((c) => c.name);
 for (const [col, def] of Object.entries({
   display_name: "TEXT NOT NULL DEFAULT ''",
