@@ -1,0 +1,56 @@
+<%- include('partials/head', { title: 'My account' }) %>
+<div class="page-head"><div><h1>My account</h1><p class="muted">Signed in as <b><%= u.username %></b>.</p></div></div>
+
+<% if (codes) { %>
+  <div class="onetime">
+    <div class="onetime-head"><%- icon('shield', 18) %><b>New recovery codes</b></div>
+    <p>Your old codes no longer work. Save these somewhere safe. <b>They won't be shown again.</b></p>
+    <div class="codes"><% codes.forEach(function (c) { %><code><%= c %></code><% }) %></div>
+    <button type="button" class="btn sm mt" data-copy-text="<%= codes.join('\n') %>">Copy codes</button>
+  </div>
+<% } %>
+
+<section class="card">
+  <div class="card-head"><h2>Profile</h2></div>
+  <form method="post" action="/admin/account/profile" class="inline-row">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <label class="grow">Name <input name="display_name" value="<%= u.display_name %>" placeholder="Your name"></label>
+    <button class="btn">Save</button>
+  </form>
+</section>
+
+<section class="card" id="2fa">
+  <div class="card-head row">
+    <div><h2>Two-factor sign-in</h2><p class="muted">A code from an authenticator app on your phone, as well as your password.</p></div>
+    <span class="status <%= u.totp_enabled ? 'ok' : (needs2fa ? 'warn' : '') %>"><%= u.totp_enabled ? 'On' : 'Off' %></span>
+  </div>
+  <% if (u.totp_enabled) { %>
+    <p class="small muted">Recovery codes left: <b><%= recoveryLeft %></b> of 10.</p>
+    <div class="actions mt">
+      <form method="post" action="/admin/account/2fa/recovery" data-confirm="Generate new recovery codes? Your current ones will stop working."><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn">New recovery codes</button></form>
+    </div>
+    <% if (needs2fa) { %>
+      <p class="small muted mt">Two-factor is required for your account, so it can't be turned off.</p>
+    <% } else { %>
+      <form method="post" action="/admin/account/2fa/disable" class="inline-row mt">
+        <input type="hidden" name="_csrf" value="<%= csrf %>">
+        <label class="grow">Confirm your password to turn it off <input type="password" name="password" autocomplete="current-password" required></label>
+        <button class="btn danger">Turn off</button>
+      </form>
+    <% } %>
+  <% } else { %>
+    <a class="btn primary" href="/admin/account/2fa/setup"><%- icon('shield', 16) %>Set up two-factor</a>
+  <% } %>
+</section>
+
+<section class="card">
+  <div class="card-head"><h2>Change password</h2></div>
+  <form method="post" action="/admin/account/change-password" class="stack narrow-form">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <label>Current password <input type="password" name="current" autocomplete="current-password" required></label>
+    <label>New password <input type="password" name="next" autocomplete="new-password" minlength="10" required><small>At least 10 characters. Other sessions will be signed out.</small></label>
+    <label>Confirm new password <input type="password" name="confirm" autocomplete="new-password" minlength="10" required></label>
+    <div class="actions"><button class="btn primary">Change password</button></div>
+  </form>
+</section>
+<%- include('partials/foot') %>

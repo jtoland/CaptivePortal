@@ -1,0 +1,20 @@
+# Runtime data: database, uploads, certificates, backups. Never commit these.
+data/
+backups/
+*.cpbak
+*.db
+*.db-shm
+*.db-wal
+
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.pfx
+*.p12
+
+node_modules/
+npm-debug.log*
+.DS_Store

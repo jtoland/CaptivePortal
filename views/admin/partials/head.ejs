@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="csrf" content="<%= csrf %>">
+<title><%= typeof title !== 'undefined' ? title + ' · ' : '' %>Captive Portal</title>
+<link rel="stylesheet" href="/static/admin.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-in">
+    <a class="brand" href="/admin"><span class="brand-mark"><%- icon('wifi', 16) %></span><span>Captive Portal</span></a>
+    <nav>
+      <% const on = function (x) { return x === 'profiles' ? (path === '/admin' || path.startsWith('/admin?') || path.startsWith('/admin/profiles')) : path.startsWith('/admin/' + x); }; %>
+      <a href="/admin" class="<%= on('profiles') ? 'on' : '' %>"><%- icon('wifi', 16) %>Networks</a>
+      <a href="/admin/vouchers" class="<%= on('vouchers') ? 'on' : '' %>"><%- icon('ticket', 16) %>Vouchers</a>
+      <a href="/admin/sessions" class="<%= on('sessions') ? 'on' : '' %>"><%- icon('list', 16) %>Sessions</a>
+      <a href="/admin/users" class="<%= on('users') ? 'on' : '' %>"><%- icon('users', 16) %>Users</a>
+      <a href="/admin/settings" class="<%= on('settings') ? 'on' : '' %>"><%- icon('sliders', 16) %>Settings</a>
+    </nav>
+    <a class="me <%= on('account') ? 'on' : '' %>" href="/admin/account" title="My account"><span class="avatar"><%= (me.display_name || me.username).trim().charAt(0).toUpperCase() %></span><span class="me-name"><%= me.display_name || me.username %></span></a>
+    <form method="post" action="/admin/logout" class="logout"><input type="hidden" name="_csrf" value="<%= csrf %>"><button title="Log out"><%- icon('logout', 16) %><span>Log out</span></button></form>
+  </div>
+</header>
+<main class="wrap">
+<% if (flash) { %><div class="flash ok" role="status"><%- icon('check', 16) %><span><%= flash.replace(/^✔\s*/, '') %></span></div><% } %>
+<% if (flashErr) { %><div class="flash err" role="alert"><%- icon('alert', 16) %><span><%= flashErr %></span></div><% } %>

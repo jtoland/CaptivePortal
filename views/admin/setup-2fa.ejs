@@ -1,0 +1,32 @@
+<%- include('partials/auth-head', { title: 'Two-factor sign-in', wide: true }) %>
+<% if (codes) { %>
+  <div class="stack">
+    <h1>Two-factor is on ✓</h1>
+    <p class="muted">Save these <b>recovery codes</b> somewhere safe, such as a password manager or printed. Each one works once if you lose your phone. <b>They won't be shown again.</b></p>
+    <div class="codes"><% codes.forEach(function (c) { %><code><%= c %></code><% }) %></div>
+    <div class="actions">
+      <button type="button" class="btn" data-copy-text="<%= codes.join('\n') %>">Copy codes</button>
+      <a class="btn primary" href="/admin">I've saved them, continue</a>
+    </div>
+  </div>
+<% } else { %>
+  <form method="post" action="/admin/account/2fa/setup" class="stack">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <input type="hidden" name="secret" value="<%= secret %>">
+    <h1>Set up two-factor sign-in</h1>
+    <p class="muted"><%= forced ? 'Your account requires two-factor sign-in. It only takes a minute.' : 'Add a second step to sign-in using an app on your phone.' %></p>
+    <% if (error) { %><div class="flash err slim"><span><%= error %></span></div><% } %>
+    <div class="tfa-steps">
+      <div class="tfa-step"><span>1</span><div><b>Get an authenticator app</b><small>Microsoft Authenticator, Google Authenticator, 1Password, Authy, or any app that supports "TOTP" codes.</small></div></div>
+      <div class="tfa-step"><span>2</span><div><b>Scan this QR code</b><small>In the app, add an account and scan. Can't scan? Enter this key instead:</small>
+        <div class="qr-row"><div class="qr"><%- qr %></div>
+          <span class="copy-field key"><code><%= secret.match(/.{4}/g).join(' ') %></code><button type="button" class="copy-btn" data-copy="<%= secret %>" title="Copy"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg></button></span></div></div></div>
+      <div class="tfa-step"><span>3</span><div><b>Enter the 6-digit code it shows</b>
+        <input class="otp-input" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]{6,7}" placeholder="123 456" required></div></div>
+    </div>
+    <button class="btn primary block" type="submit">Turn on two-factor</button>
+    <% if (!forced) { %><p class="center small"><a href="/admin/account">Cancel</a></p><% } %>
+  </form>
+  <% if (forced) { %><form method="post" action="/admin/logout" class="center mt"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="linkish">Sign out</button></form><% } %>
+<% } %>
+<%- include('partials/auth-foot') %>

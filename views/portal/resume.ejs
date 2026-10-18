@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Continue signing in</title>
+<link rel="stylesheet" href="/static/portal.css">
+<style><%- profile.design_css %></style>
+</head>
+<body<%- bodyAttrs %>>
+<%- bodyHtml %>
+<div id="cp-login" class="cp-login cp-theme-<%= profile.options.widget_theme === 'dark' ? 'dark' : 'light' %>" style="--cp-accent: <%= profile.options.accent %>">
+  <div class="cp-grace">
+    <div class="cp-grace-ico"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4M10 16l4-4-4-4M14 12H4"/></svg></div>
+    <h2>Continue signing in</h2>
+    <p>Pick up where you left off with <b><%= providerLabel %></b>. You have about <%= minutesLeft %> minute<%= minutesLeft === 1 ? '' : 's' %> left before temporary access ends.</p>
+    <form method="post" action="/portal/<%= ctx.id %>/sso/<%= provider %>">
+      <input type="hidden" name="accept" value="1">
+      <input type="hidden" name="resumed" value="1">
+      <button class="cp-btn cp-btn-primary" type="submit"><span class="cp-btn-label">Continue with <%= providerLabel %></span></button>
+    </form>
+  </div>
+</div>
+<script src="/static/portal.js"></script>
+</body>
+</html>

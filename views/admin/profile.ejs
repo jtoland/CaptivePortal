@@ -1,0 +1,175 @@
+<%- include('partials/head', { title: p.id ? p.name : 'New network profile' }) %>
+<div class="crumbs"><a href="/admin">Networks</a><%- icon('chevron', 14) %><span><%= p.id ? p.name : 'New profile' %></span></div>
+<div class="page-head">
+  <div>
+    <h1><%= p.id ? p.name : 'New network profile' %></h1>
+    <% if (p.id && p.auto_created) { %><p class="muted">Created automatically when SSID “<%= p.ssids %>” was discovered on your controller.</p><% } %>
+  </div>
+  <% if (p.id) { %>
+  <div class="actions">
+    <a class="btn" href="/preview/<%= p.id %>" target="_blank"><%- icon('external', 16) %>Open preview</a>
+    <a class="btn primary" href="/admin/profiles/<%= p.id %>/design"><%- icon('brush', 16) %>Design page</a>
+  </div>
+  <% } %>
+</div>
+
+<div class="split-layout">
+<form method="post" action="/admin/profiles<%= p.id ? '/' + p.id : '' %>" class="stack" id="profile-form">
+  <input type="hidden" name="_csrf" value="<%= csrf %>">
+
+  <section class="card">
+    <div class="card-head"><h2>Network</h2></div>
+    <div class="grid2">
+      <label>Profile name <input name="name" value="<%= p.name %>" required placeholder="e.g. Guest"></label>
+      <label>SSID name(s) <input name="ssids" value="<%= p.ssids %>" placeholder="e.g. Guest, Guest-5G">
+        <small>Comma-separated. Must match your WiFi network names in UniFi.</small></label>
+    </div>
+    <div class="toggles">
+      <label class="toggle-row"><span class="switch"><input type="checkbox" name="enabled" <%= p.enabled ? 'checked' : '' %>><span></span></span>
+        <span><b>Profile enabled</b><small>When off, guests on these SSIDs get the default profile.</small></span></label>
+      <label class="toggle-row"><span class="switch"><input type="checkbox" name="is_default" <%= p.is_default ? 'checked' : '' %>><span></span></span>
+        <span><b>Default profile</b><small>Used for any SSID that doesn't match another profile.</small></span></label>
+    </div>
+  </section>
+
+  <section class="card maint-card <%= p.options.maintenance ? 'on' : '' %>">
+    <label class="toggle-row"><span class="switch"><input type="checkbox" name="maintenance" <%= p.options.maintenance ? 'checked' : '' %>><span></span></span>
+      <span><b>Maintenance mode</b><small>Guests on this network see your page with the message below, and can't sign in. People already online stay connected. Your previews still show the real sign-in page.</small></span></label>
+    <label class="mt">Message for guests <input name="maintenance_message" value="<%= p.options.maintenance_message %>" maxlength="300"></label>
+  </section>
+
+  <section class="card">
+    <div class="card-head"><h2>Sign-in methods</h2><p class="muted">Switch on any combination. Guests see the ones that are on.</p></div>
+    <div class="method-list">
+      <div class="method-row" id="m-voucher">
+        <span class="m-ico lg"><%- methodIcon('voucher') %></span>
+        <div class="grow"><b>Voucher codes</b><small>Each voucher has its own duration and limits. <a href="/admin/vouchers">Manage vouchers</a></small></div>
+        <label class="switch"><input type="checkbox" name="m_voucher" <%= p.methods.voucher.enabled ? 'checked' : '' %> aria-label="Voucher codes"><span></span></label>
+      </div>
+      <div class="method-row" id="m-password">
+        <span class="m-ico lg"><%- methodIcon('password') %></span>
+        <div class="grow"><b>Shared password</b><small>One password for everyone on this network.</small>
+          <div class="reveal"><input name="password_value" value="<%= p.methods.password.password %>" placeholder="Password guests will enter" autocomplete="off"></div></div>
+        <label class="switch"><input type="checkbox" name="m_password" <%= p.methods.password.enabled ? 'checked' : '' %> aria-label="Shared password"><span></span></label>
+      </div>
+      <div class="method-row">
+        <span class="m-ico lg"><%- methodIcon('email') %></span>
+        <div class="grow"><b>Email registration</b><small>Collect an email address (and name) before connecting.</small>
+          <div class="reveal checks">
+            <label class="check"><input type="checkbox" name="email_require_name" <%= p.methods.email.require_name ? 'checked' : '' %>> Ask for name</label>
+            <label class="check"><input type="checkbox" name="email_marketing_optin" <%= p.methods.email.marketing_optin ? 'checked' : '' %>> Show marketing opt-in</label>
+          </div></div>
+        <label class="switch"><input type="checkbox" name="m_email" <%= p.methods.email.enabled ? 'checked' : '' %> aria-label="Email registration"><span></span></label>
+      </div>
+      <div class="method-row">
+        <span class="m-ico lg"><%- methodIcon('click') %></span>
+        <div class="grow"><b>Click-through</b><small>Free access with one tap. Shown as a link when other methods are on.</small>
+          <div class="reveal"><input name="click_button_text" value="<%= p.methods.click.button_text %>" placeholder="Continue as guest"></div></div>
+        <label class="switch"><input type="checkbox" name="m_click" <%= p.methods.click.enabled ? 'checked' : '' %> aria-label="Click-through"><span></span></label>
+      </div>
+    </div>
+
+    <div class="subhead">Single sign-on</div>
+    <% if (!ssoProviders.length) { %>
+      <div class="empty small-empty"><%- icon('key', 20) %><p>No sign-in providers yet. <a href="/admin/settings#sso">Add Google, Microsoft, Apple, OIDC or SAML</a>. You can add several of each.</p></div>
+    <% } %>
+    <div class="method-list">
+      <% ssoProviders.forEach(function (pr) { const on = !!(p.methods[pr.id] && p.methods[pr.id].enabled); %>
+      <div class="method-row">
+        <span class="m-ico lg"><%- methodIcon(pr.type) %></span>
+        <div class="grow"><b><%= ssoName(pr) %></b>
+          <small><%= SSO_TYPES[pr.type].label %><% if (pr.label) { %> · button reads “<%= pr.label %>”<% } %>
+          <% if (!ssoConfigured(pr)) { %> · <span class="warn-text">needs credentials, <a href="/admin/settings#sso-<%= pr.id %>">set up</a></span><% } %>
+          <% if (!tenantPinned(pr) && p.options.sso_allowed_domains) { %><br><span class="warn-text">Won't work with the email-domain rule below until it's <a href="/admin/settings#sso-<%= pr.id %>">pinned to your tenant</a>.</span><% } %></small></div>
+        <label class="switch"><input type="checkbox" name="m_<%= pr.id %>" <%= on ? 'checked' : '' %> aria-label="<%= ssoName(pr) %>"><span></span></label>
+      </div>
+      <% }) %>
+    </div>
+    <label class="mt">Only allow these email domains for SSO <input name="sso_allowed_domains" value="<%= p.options.sso_allowed_domains %>" placeholder="e.g. example.com (leave empty to allow any account)">
+      <small>Comma-separated. Use it on a staff network so only company accounts can sign in.</small></label>
+
+    <div class="grace-box">
+      <div class="method-row" id="m-grace">
+        <span class="m-ico lg"><%- icon('clock', 17) %></span>
+        <div class="grow"><b>Temporary internet while signing in</b>
+          <small>Phones close the sign-in pop-up when you switch to an authenticator app, and the push can't arrive without internet. When this is on, a device gets a few minutes of capped access as soon as it starts an SSO sign-in. If the pop-up closes, the guest opens Safari or Chrome, goes to the portal, and taps <i>Continue</i>. Unfinished access simply expires.</small>
+          <div class="reveal grace-fields">
+            <label>Length <span class="input-unit"><input type="number" name="sso_grace_minutes" min="1" max="30" value="<%= p.options.sso_grace_minutes || 5 %>"><em>min</em></span></label>
+            <label>Speed cap <span class="input-unit"><input type="number" name="sso_grace_kbps" min="0" value="<%= p.options.sso_grace_kbps == null ? 2000 : p.options.sso_grace_kbps %>"><em>kbps</em></span><small>0 = unlimited</small></label>
+            <label>Once per device every <span class="input-unit"><input type="number" name="sso_grace_cooldown" min="0" max="1440" value="<%= p.options.sso_grace_cooldown == null ? 60 : p.options.sso_grace_cooldown %>"><em>min</em></span><small>Stops it being used as free WiFi</small></label>
+          </div></div>
+        <label class="switch"><input type="checkbox" name="sso_grace_enabled" <%= p.options.sso_grace_enabled ? 'checked' : '' %> aria-label="Temporary internet while signing in"><span></span></label>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-head"><h2>Session &amp; limits</h2><p class="muted">For every method except vouchers. A voucher limit left at 0 falls back to these.</p></div>
+    <div class="grid4">
+      <label>Session length <span class="input-unit"><input type="number" min="1" name="minutes" value="<%= p.options.minutes %>"><em>min</em></span></label>
+      <label>Download <span class="input-unit"><input type="number" min="0" name="down_kbps" value="<%= p.options.down_kbps %>"><em>kbps</em></span><small>0 = unlimited</small></label>
+      <label>Upload <span class="input-unit"><input type="number" min="0" name="up_kbps" value="<%= p.options.up_kbps %>"><em>kbps</em></span><small>0 = unlimited</small></label>
+      <label>Data cap <span class="input-unit"><input type="number" min="0" name="data_mb" value="<%= p.options.data_mb %>"><em>MB</em></span><small>0 = unlimited</small></label>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-head"><h2>Look &amp; behaviour</h2></div>
+    <div class="grid2">
+      <label>Accent colour <span class="color-field"><input type="color" name="accent" value="<%= p.options.accent %>"><code><%= p.options.accent %></code></span>
+        <small>Used for the login buttons and focus rings.</small></label>
+      <div><span class="label">Login box style</span>
+        <div class="seg mt-xs">
+          <label><input type="radio" name="widget_theme" value="light" <%= p.options.widget_theme !== 'dark' ? 'checked' : '' %>> Light</label>
+          <label><input type="radio" name="widget_theme" value="dark" <%= p.options.widget_theme === 'dark' ? 'checked' : '' %>> Dark</label>
+        </div><small class="hint">Choose Dark when your page design is dark.</small></div>
+    </div>
+    <div class="grid2">
+      <label>Redirect after sign-in <input name="redirect_url" value="<%= p.options.redirect_url %>" placeholder="https://… (empty = the page the guest asked for)"></label>
+      <label>Success message <input name="success_message" value="<%= p.options.success_message %>"></label>
+    </div>
+    <div class="toggles">
+      <label class="toggle-row"><span class="switch"><input type="checkbox" name="terms_enabled" <%= p.options.terms_enabled ? 'checked' : '' %>><span></span></span>
+        <span><b>Show terms of use</b></span></label>
+    </div>
+    <div class="terms-opts">
+      <div class="seg">
+        <label><input type="radio" name="terms_mode" value="implied" <%= p.options.terms_mode !== 'checkbox' ? 'checked' : '' %>> “By connecting you agree…”</label>
+        <label><input type="radio" name="terms_mode" value="checkbox" <%= p.options.terms_mode === 'checkbox' ? 'checked' : '' %>> Guests must tick a box</label>
+      </div>
+      <label>Terms text <textarea name="terms_text" rows="4"><%= p.options.terms_text %></textarea></label>
+    </div>
+  </section>
+
+  <div class="savebar">
+    <span class="muted small" id="unsaved" hidden>You have unsaved changes</span>
+    <a class="btn ghost" href="/admin">Cancel</a>
+    <button class="btn primary" type="submit"><%= p.id ? 'Save changes' : 'Create profile' %></button>
+  </div>
+
+  <% if (p.id) { %>
+  <section class="card quiet">
+    <div class="card-head"><h2>More actions</h2></div>
+    <div class="actions">
+      <button class="btn" form="dup-form">Duplicate profile</button>
+      <% if (!p.is_default) { %><button class="btn danger" form="del-form">Delete profile</button><% } %>
+    </div>
+  </section>
+  <% } %>
+</form>
+
+<% if (p.id) { %>
+<aside class="preview-col">
+  <div class="preview-sticky">
+    <div class="preview-label">Live preview <span class="muted small">updates when you save</span></div>
+    <div class="phone">
+      <div class="phone-screen lg"><iframe src="/preview/<%= p.id %>?thumb=1" title="Portal preview"></iframe></div>
+    </div>
+    <a class="btn block" href="/admin/profiles/<%= p.id %>/design"><%- icon('brush', 16) %>Edit page design</a>
+  </div>
+</aside>
+<form method="post" action="/admin/profiles/<%= p.id %>/duplicate" id="dup-form" hidden><input type="hidden" name="_csrf" value="<%= csrf %>"></form>
+<form method="post" action="/admin/profiles/<%= p.id %>/delete" id="del-form" data-confirm="Delete profile <%= p.name %>? This can't be undone." hidden><input type="hidden" name="_csrf" value="<%= csrf %>"></form>
+<% } %>
+</div>
+<%- include('partials/foot') %>

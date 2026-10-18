@@ -1,0 +1,140 @@
+<%- include('partials/head', { title: 'Networks' }) %>
+<% if (!unifiCfg.username && !unifiCfg.api_key) { %>
+  <div class="callout">
+    <span class="callout-ico"><%- icon('server', 20) %></span>
+    <div><b>Connect your UniFi gateway</b><p>Guests can sign in, but they won't get internet access until the portal can talk to your UCG Ultra.</p></div>
+    <a class="btn primary" href="/admin/settings#unifi">Connect now</a>
+  </div>
+<% } %>
+
+<% const nowS = Math.floor(Date.now() / 1000); %>
+<% if (tlsJob && tlsJob.status === 'failed' && tlsJob.trigger === 'renewal') { %>
+  <div class="callout warn">
+    <span class="callout-ico"><%- icon('alert', 20) %></span>
+    <div><b>Automatic certificate renewal failed</b><p><%= tlsJob.error %> It will try again in a few hours. Check your DNS provider settings.</p></div>
+    <a class="btn" href="/admin/settings#certificate">Check settings</a>
+  </div>
+<% } else if (tlsPending) { %>
+  <div class="callout warn">
+    <span class="callout-ico"><%- icon('lock', 20) %></span>
+    <div><b>Certificate request waiting for you</b><p>Add the TXT record shown in Settings, then verify to finish turning on HTTPS.</p></div>
+    <a class="btn" href="/admin/settings#certificate">Continue</a>
+  </div>
+<% } else if (cert && cert.expires < nowS) { %>
+  <div class="callout warn">
+    <span class="callout-ico"><%- icon('alert', 20) %></span>
+    <div><b>Your HTTPS certificate has expired</b><p>Guests are back on plain HTTP and SSO sign-ins won't work until you renew. It takes a couple of minutes.</p></div>
+    <a class="btn primary" href="/admin/settings#certificate">Renew now</a>
+  </div>
+<% } else if (cert && cert.days_left <= 30) { %>
+  <div class="callout warn">
+    <span class="callout-ico"><%- icon('lock', 20) %></span>
+    <div><b>HTTPS certificate expires in <%= cert.days_left %> day<%= cert.days_left === 1 ? '' : 's' %></b><p>Renew it now: you'll add one new TXT record at your DNS provider.</p></div>
+    <a class="btn primary" href="/admin/settings#certificate">Renew</a>
+  </div>
+<% } else if (publicUrl && !cert) { %>
+  <div class="callout">
+    <span class="callout-ico"><%- icon('lock', 20) %></span>
+    <div><b>Finish setting up HTTPS</b><p>Your public address is set, but there's no certificate yet, so SSO sign-ins won't work.</p></div>
+    <a class="btn" href="/admin/settings#certificate">Get certificate</a>
+  </div>
+<% } %>
+
+<section class="stats">
+  <div class="stat"><span class="stat-ico"><%- icon('users') %></span><div><b><%= stats.active %></b><span>Online now</span></div></div>
+  <div class="stat"><span class="stat-ico"><%- icon('login') %></span><div><b><%= stats.today %></b><span>Sign-ins today</span></div></div>
+  <div class="stat"><span class="stat-ico"><%- icon('ticket') %></span><div><b><%= stats.vouchers %></b><span>Vouchers available</span></div></div>
+  <div class="stat <%= stats.failed ? 'bad' : '' %>"><span class="stat-ico"><%- icon('alert') %></span><div><b><%= stats.failed %></b><span>UniFi errors today</span></div></div>
+</section>
+
+<div class="page-head">
+  <div>
+    <h1>Networks</h1>
+    <p class="muted">Each SSID gets its own page design and sign-in options. Guests on an SSID without a profile see the <b>default</b> one.</p>
+  </div>
+  <a class="btn primary" href="/admin/profiles/new"><%- icon('plus', 16) %>New network profile</a>
+</div>
+
+<div class="profiles">
+<% profiles.forEach(function (p) {
+     const groups = [['Sign-in', METHOD_KEYS.map(function (k) { return { key: k, label: methodLabel(k), needs: k === 'password' && !p.methods.password.password ? ['No password', '/admin/profiles/' + p.id + '#m-password'] : null }; })]];
+     if (ssoProviders.length) groups.push(['Single sign-on', ssoProviders.map(function (pr) { return { key: pr.id, label: ssoName(pr), needs: ssoConfigured(pr) ? null : ['Set up', '/admin/settings#sso-' + pr.id] }; })]); %>
+  <article class="card profile <%= p.enabled ? '' : 'off' %>" data-profile="<%= p.id %>">
+    <a class="phone-thumb" href="/admin/profiles/<%= p.id %>/design" title="Open the designer">
+      <div class="phone-screen"><iframe src="/preview/<%= p.id %>?thumb=1" loading="lazy" tabindex="-1" title="<%= p.name %> preview"></iframe></div>
+      <span class="phone-edit"><%- icon('brush', 14) %>Design</span>
+    </a>
+    <div class="profile-body">
+      <header>
+        <div>
+          <h2><a href="/admin/profiles/<%= p.id %>"><%= p.name %></a><% if (p.is_default) { %><span class="pill">Default</span><% } %><% if (p.auto_created) { %><span class="pill auto" title="Created automatically from SSID discovery">Auto-added</span><% } %><% if (p.options.maintenance) { %><span class="pill maint">Maintenance</span><% } %></h2>
+          <div class="ssids"><% if (p.ssidList.length) { p.ssidList.forEach(function (s) { %><span class="ssid"><%- icon('wifi', 13) %><%= s %></span><% }) } else { %><span class="muted small">No SSID assigned</span><% } %></div>
+        </div>
+        <label class="switch" title="Turn this profile on or off">
+          <input type="checkbox" data-toggle="<%= p.id %>" data-key="_profile" <%= p.enabled ? 'checked' : '' %> aria-label="Profile enabled"><span></span>
+        </label>
+      </header>
+
+      <% groups.forEach(function (grp) { %>
+        <div class="mgroup">
+          <div class="mgroup-title"><%= grp[0] %></div>
+          <div class="methods">
+          <% grp[1].forEach(function (m) { const on = !!(p.methods[m.key] && p.methods[m.key].enabled); %>
+            <label class="method <%= on ? 'is-on' : '' %>">
+              <span class="m-ico"><%- methodIcon(m.key) %></span>
+              <span class="m-name" title="<%= m.label %>"><%= m.label %><% if (m.needs) { %><a class="m-warn" href="<%= m.needs[1] %>"><%= m.needs[0] %></a><% } %></span>
+              <span class="switch sm"><input type="checkbox" data-toggle="<%= p.id %>" data-key="<%= m.key %>" <%= on ? 'checked' : '' %> aria-label="<%= m.label %>"><span></span></span>
+            </label>
+          <% }) %>
+          </div>
+        </div>
+      <% }) %>
+      <% if (!ssoProviders.length) { %><p class="muted small mt">Want Google, Microsoft or company SSO? <a href="/admin/settings#sso">Add a sign-in provider</a>.</p><% } %>
+      <label class="method maint-toggle <%= p.options.maintenance ? 'is-on' : '' %>" title="Stop guests signing in while you set things up">
+        <span class="m-ico"><%- icon('alert', 16) %></span><span class="m-name">Maintenance mode<small class="muted"> · guests can't sign in</small></span>
+        <span class="switch sm"><input type="checkbox" data-toggle="<%= p.id %>" data-key="_maintenance" <%= p.options.maintenance ? 'checked' : '' %> aria-label="Maintenance mode"><span></span></span>
+      </label>
+
+      <footer>
+        <a class="btn" href="/admin/profiles/<%= p.id %>/design"><%- icon('brush', 16) %>Design</a>
+        <a class="btn" href="/preview/<%= p.id %>" target="_blank"><%- icon('eye', 16) %>Preview</a>
+        <a class="btn ghost" href="/admin/profiles/<%= p.id %>"><%- icon('sliders', 16) %>Settings</a>
+      </footer>
+    </div>
+  </article>
+<% }) %>
+</div>
+
+<section class="card ssid-panel" id="ssids">
+  <div class="card-head row">
+    <div>
+      <h2>WiFi networks on your controller</h2>
+      <p class="muted small">
+        <% if (wlans && wlans.at) { %>Checked <%= fmtAgo(wlans.at) %><%= syncCfg.enabled ? ' · re-checks every ' + syncCfg.interval_min + ' min' : ' · automatic checks off' %><%= syncCfg.auto_create ? ' · new portal SSIDs get a profile automatically' : '' %>
+        <% } else { %>Not checked yet. Connect your controller, then sync.<% } %>
+      </p>
+    </div>
+    <form method="post" action="/admin/ssids/sync"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn"><%- icon('wifi', 16) %>Sync now</button></form>
+  </div>
+  <% if (wlans && wlans.error) { %><div class="flash err slim"><%- icon('alert', 16) %><span>Last check failed: <%= wlans.error %></span></div><% } %>
+  <% if (wlans && wlans.list && wlans.list.length) { %>
+    <div class="ssid-list">
+      <% wlans.list.slice().sort(function (a, b) { return (b.portal - a.portal) || a.name.localeCompare(b.name); }).forEach(function (w) { %>
+        <div class="ssid-item <%= w.portal ? '' : 'dim' %>">
+          <span class="ssid-name"><%- icon('wifi', 15) %><%= w.name %></span>
+          <% if (!w.enabled) { %><span class="status">Disabled</span>
+          <% } else if (!w.portal) { %><span class="status">No portal</span>
+          <% } else if (w.profile_id) { %><a class="status ok" href="/admin/profiles/<%= w.profile_id %>">→ <%= w.profile_name %></a>
+          <% } else { %><span class="status warn">Uses default</span><% } %>
+        </div>
+      <% }) %>
+    </div>
+  <% } %>
+</section>
+
+<div class="page-head section">
+  <h2>Recent sign-ins</h2>
+  <a href="/admin/sessions" class="link-arrow">View all <%- icon('chevron', 14) %></a>
+</div>
+<%- include('partials/sessions-table', { rows: recent, compact: true }) %>
+<%- include('partials/foot') %>

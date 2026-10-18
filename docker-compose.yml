@@ -1,0 +1,14 @@
+services:
+  portal:
+    build: .
+    image: unifi-captive-portal:latest
+    container_name: captive-portal
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ./data:/data
+    ports:
+      # UniFi's External Portal always redirects guests to http://<portal-ip>:80
+      - "80:3000"
+      # HTTPS for your public address, active once a certificate is issued in Settings → Hotspot setup
+      - "443:3443"

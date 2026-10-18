@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Connected</title>
+<link rel="stylesheet" href="/static/portal.css">
+<style><%- profile.design_css %></style>
+</head>
+<body<%- bodyAttrs %>>
+<%- bodyHtml %>
+<div id="cp-login" class="cp-login cp-theme-<%= profile.options.widget_theme === 'dark' ? 'dark' : 'light' %>" style="--cp-accent: <%= profile.options.accent %>">
+  <div class="cp-success" role="status">
+    <div class="cp-tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>
+    <h2>You're online</h2>
+    <p><%= profile.options.success_message || 'Enjoy the internet.' %></p>
+    <% if (target) { %>
+      <div class="cp-progress"><i></i></div>
+      <p class="cp-small"><a href="<%= target %>">Continue now →</a></p>
+      <script>setTimeout(function () { location.href = <%- JSON.stringify(target).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029') %>; }, 4000);</script>
+    <% } else { %>
+      <p class="cp-small" style="margin-top:14px">You can close this window.</p>
+    <% } %>
+  </div>
+</div>
+<script src="/static/portal.js"></script>
+</body>
+</html>

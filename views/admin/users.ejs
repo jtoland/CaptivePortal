@@ -1,0 +1,83 @@
+<%- include('partials/head', { title: 'Users' }) %>
+<div class="page-head">
+  <div><h1>Users</h1><p class="muted">People who can sign in to this admin. Each person should have their own account.</p></div>
+</div>
+
+<% if (error) { %><div class="flash err" role="alert"><%- icon('alert', 16) %><span><%= error %></span></div><% } %>
+<% if (created) { %><%- include('partials/onetime-password', { heading: 'Account created for ' + created.user.username, who: created.user, password: created.password }) %><% } %>
+<% if (reset) { %><%- include('partials/onetime-password', { heading: 'New password for ' + reset.user.username, who: reset.user, password: reset.password }) %><% } %>
+
+<section class="card">
+  <div class="card-head row">
+    <div><h2>Two-factor sign-in</h2><p class="muted">Require everyone to use an authenticator app code when they sign in.</p></div>
+    <form method="post" action="/admin/users/security">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <label class="toggle-row"><span class="switch"><input type="checkbox" name="require_2fa" <%= security.require_2fa ? 'checked' : '' %> onchange="this.form.submit()"><span></span></span>
+        <span><b>Require for everyone</b></span></label>
+    </form>
+  </div>
+  <% if (security.require_2fa) { %><p class="small muted">Anyone without two-factor will be asked to set it up at their next sign-in. You can also require it for individual people below.</p><% } %>
+</section>
+
+<section class="card flush">
+  <div class="card-head pad"><h2>Accounts</h2></div>
+  <div class="table-wrap plain">
+  <table class="table">
+    <thead><tr><th>Person</th><th>Two-factor</th><th>Last sign-in</th><th>Status</th><th class="right">Actions</th></tr></thead>
+    <tbody>
+    <% users.forEach(function (u) { const self = u.id === me.id; const req2 = security.require_2fa || u.require_2fa; %>
+      <tr class="<%= u.disabled ? 'dim' : '' %>">
+        <td><div class="who"><%= u.display_name || u.username %><% if (self) { %> <span class="pill">You</span><% } %></div><div class="muted small"><%= u.username %></div></td>
+        <td>
+          <% if (u.totp_enabled) { %><span class="status ok">On</span>
+          <% } else if (req2) { %><span class="status warn">Set up at next sign-in</span>
+          <% } else { %><span class="status">Off</span><% } %>
+          <div class="muted small"><%= security.require_2fa ? 'Required for everyone' : (u.require_2fa ? 'Required for this person' : 'Optional') %></div>
+        </td>
+        <td class="nowrap"><%= u.last_login_at ? fmtAgo(u.last_login_at) : 'Never' %><% if (u.must_change_password) { %><div class="muted small">Temporary password</div><% } %></td>
+        <td><%- u.disabled ? '<span class="status bad">Disabled</span>' : '<span class="status ok">Active</span>' %></td>
+        <td class="right">
+          <details class="menu">
+            <summary class="btn sm">Manage <%- icon('chevron', 13) %></summary>
+            <div class="menu-pop">
+              <% if (!self) { %>
+              <form method="post" action="/admin/users/<%= u.id %>/reset-password" data-confirm="Generate a new password for <%= u.username %>? Their current password stops working and they'll be signed out."><input type="hidden" name="_csrf" value="<%= csrf %>"><button>Reset password</button></form>
+              <% } %>
+              <% if (u.totp_enabled) { %>
+              <form method="post" action="/admin/users/<%= u.id %>/reset-2fa" data-confirm="Reset two-factor for <%= u.username %>? Use this if they lost their phone. They'll be signed out<%= req2 ? ' and must set it up again' : '' %>."><input type="hidden" name="_csrf" value="<%= csrf %>"><button>Reset two-factor</button></form>
+              <% } %>
+              <% if (!security.require_2fa) { %>
+              <form method="post" action="/admin/users/<%= u.id %>/require-2fa"><input type="hidden" name="_csrf" value="<%= csrf %>"><button><%= u.require_2fa ? 'Make two-factor optional' : 'Require two-factor' %></button></form>
+              <% } %>
+              <% if (!self) { %>
+              <form method="post" action="/admin/users/<%= u.id %>/disable" <% if (!u.disabled) { %>data-confirm="Disable <%= u.username %>? They'll be signed out and can't sign in until re-enabled."<% } %>><input type="hidden" name="_csrf" value="<%= csrf %>"><button><%= u.disabled ? 'Re-enable account' : 'Disable account' %></button></form>
+              <form method="post" action="/admin/users/<%= u.id %>/delete" data-confirm="Delete <%= u.username %>? This can't be undone."><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="danger">Delete account</button></form>
+              <% } else { %>
+              <a href="/admin/account">Manage my account →</a>
+              <% } %>
+            </div>
+          </details>
+        </td>
+      </tr>
+    <% }) %>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section class="card">
+  <div class="card-head"><h2>Add a person</h2><p class="muted">A secure password is generated for them. You'll see it once, so copy it and send it to them.</p></div>
+  <form method="post" action="/admin/users" class="stack">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <div class="grid2">
+      <label>Name <input name="display_name" value="<%= locals.form ? form.display_name : '' %>" placeholder="e.g. Sam Taylor" autocomplete="off"></label>
+      <label>Username <input name="username" value="<%= locals.form ? form.username : '' %>" placeholder="e.g. sam or sam@company.co.uk" required autocomplete="off" pattern="[a-zA-Z0-9._@\-]{3,64}"><small>Used to sign in. Letters, numbers, dot, dash, underscore or @.</small></label>
+    </div>
+    <label class="toggle-row"><span class="switch"><input type="checkbox" name="must_change" checked><span></span></span>
+      <span><b>Ask them to choose their own password at first sign-in</b></span></label>
+    <label class="toggle-row"><span class="switch"><input type="checkbox" name="require_2fa" <%= security.require_2fa ? 'checked disabled' : 'checked' %>><span></span></span>
+      <span><b>Require two-factor sign-in</b><small><%= security.require_2fa ? 'Already required for everyone.' : 'They set it up the first time they sign in.' %></small></span></label>
+    <div class="actions"><button class="btn primary"><%- icon('plus', 16) %>Create account</button></div>
+  </form>
+</section>
+<%- include('partials/foot') %>

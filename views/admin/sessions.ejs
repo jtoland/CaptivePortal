@@ -1,0 +1,10 @@
+<%- include('partials/head', { title: 'Sessions' }) %>
+<div class="row-head">
+  <h1>Sessions</h1>
+  <div class="actions">
+    <form method="get" action="/admin/sessions" class="inline"><input name="q" value="<%= q %>" placeholder="Search name, email, device, IP, MAC or SSID"><button class="btn">Search</button></form>
+    <a class="btn" href="/admin/sessions.csv">Export CSV</a>
+  </div>
+</div>
+<%- include('partials/sessions-table', { rows: rows, compact: false }) %>
+<%- include('partials/foot') %>

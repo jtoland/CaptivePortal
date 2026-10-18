@@ -1,0 +1,21 @@
+<%- include('partials/auth-head', { title: 'Restoring' }) %>
+  <div class="stack center">
+    <h1>Restoring your backup…</h1>
+    <p class="muted">The portal is restarting with the restored settings. This takes about 10 seconds.</p>
+    <div class="spinner" aria-hidden="true"></div>
+    <p class="small muted">A safety backup of the previous state was saved as <code><%= safety %></code>.</p>
+    <p class="small muted" id="restore-status">Waiting for the portal to come back…</p>
+  </div>
+  <script>
+    (function () {
+      var started = Date.now();
+      function check() {
+        fetch('/healthz', { cache: 'no-store' }).then(function (r) {
+          if (r.ok && Date.now() - started > 3000) { location.href = '/admin/login'; return; }
+          setTimeout(check, 1500);
+        }).catch(function () { setTimeout(check, 1500); });
+      }
+      setTimeout(check, 2500);
+    })();
+  </script>
+<%- include('partials/auth-foot') %>

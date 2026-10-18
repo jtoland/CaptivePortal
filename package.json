@@ -1,0 +1,22 @@
+{
+  "name": "unifi-captive-portal",
+  "version": "1.0.0",
+  "description": "Self-hosted external captive portal for UniFi with a drag-and-drop page designer, per-SSID profiles, vouchers and SSO",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@node-saml/node-saml": "5.1.0",
+    "acme-client": "5.4.0",
+    "bcryptjs": "2.4.3",
+    "better-sqlite3": "11.7.0",
+    "ejs": "3.1.10",
+    "express": "4.22.3",
+    "multer": "2.4.0",
+    "node-forge": "1.4.0",
+    "qrcode": "1.5.4"
+  },
+  "author": "MonkeyCode"
+}

@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="csrf" content="<%= csrf %>">
+<title>Design · <%= p.name %></title>
+<link rel="stylesheet" href="/static/vendor/grapes.min.css">
+<link rel="stylesheet" href="/static/designer.css">
+</head>
+<body>
+<header class="d-top">
+  <a href="/admin/profiles/<%= p.id %>" class="d-back" title="Back to <%= p.name %> settings">
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m15 18-6-6 6-6"/></svg><span><%= p.name %></span></a>
+  <span class="d-ssid"><%= p.ssidList.join(', ') || 'no SSID' %></span>
+
+  <div class="d-devices" role="group" aria-label="Preview size">
+    <button type="button" data-device="Phone" class="on" title="Phone"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="7" y="2.5" width="10" height="19" rx="2"/><path d="M11 18.5h2"/></svg><span>Phone</span></button>
+    <button type="button" data-device="Tablet" title="Tablet"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4.5" y="2.5" width="15" height="19" rx="2"/><path d="M11 18.5h2"/></svg><span>Tablet</span></button>
+    <button type="button" data-device="Desktop" title="Desktop"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2.5" y="4" width="19" height="13" rx="1.5"/><path d="M8 21h8M12 17v4"/></svg><span>Desktop</span></button>
+  </div>
+
+  <div class="d-history">
+    <button type="button" id="d-undo" title="Undo (Ctrl+Z)"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></button>
+    <button type="button" id="d-redo" title="Redo (Ctrl+Shift+Z)"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg></button>
+  </div>
+
+  <span id="d-status" class="d-status"></span>
+
+  <div class="d-actions">
+    <button id="d-templates" type="button"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg><span>Templates</span></button>
+    <a href="/preview/<%= p.id %>" target="_blank" id="d-preview"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg><span>Preview</span></a>
+    <button id="d-save" type="button" class="primary">Save</button>
+  </div>
+</header>
+
+<div class="d-shell">
+  <!-- LEFT: add things / page-wide look -->
+  <aside class="d-left">
+    <div class="d-tabs" role="tablist">
+      <button type="button" class="on" data-ltab="add">Add</button>
+      <button type="button" data-ltab="page">Page</button>
+    </div>
+    <div class="d-pane" data-lpane="add">
+      <p class="d-hint">Drag a block onto the page.</p>
+      <div id="d-blocks"></div>
+    </div>
+    <div class="d-pane" data-lpane="page" hidden>
+      <div class="d-group">
+        <div class="d-label">Background</div>
+        <div class="d-swatches" id="d-bg-swatches"></div>
+        <label class="d-color"><input type="color" id="d-bg-color"><span>Custom colour</span></label>
+        <div class="d-flabel mt">Background photo</div>
+        <div id="d-bg-image"></div>
+      </div>
+      <div class="d-group">
+        <div class="d-label">Font style</div>
+        <div class="d-fonts" id="d-fonts"></div>
+      </div>
+      <div class="d-group">
+        <div class="d-label">Sign-in box</div>
+        <label class="d-color"><input type="color" id="d-accent" value="<%= p.options.accent %>"><span>Button colour</span></label>
+        <div class="d-seg mt" id="d-theme">
+          <button type="button" data-v="light" class="<%= p.options.widget_theme !== 'dark' ? 'on' : '' %>">Light</button>
+          <button type="button" data-v="dark" class="<%= p.options.widget_theme === 'dark' ? 'on' : '' %>">Dark</button>
+        </div>
+        <p class="d-small">Pick <b>Dark</b> when your page is dark. Which sign-in options appear is set in <a href="/admin/profiles/<%= p.id %>">network settings</a>.</p>
+      </div>
+    </div>
+  </aside>
+
+  <main class="d-canvas"><div id="gjs"></div></main>
+
+  <!-- RIGHT: edit whatever is selected -->
+  <aside class="d-right">
+    <div id="d-welcome" class="d-welcome" hidden>
+      <b>How to edit your page</b>
+      <ol>
+        <li><b>Click</b> anything on the page to select it.</li>
+        <li><b>Double-click</b> text to change the words.</li>
+        <li><b>Drag</b> blocks from <i>Add</i> to put new things on the page.</li>
+      </ol>
+      <button type="button" class="d-btn sm" id="d-welcome-ok">Got it</button>
+    </div>
+    <div id="d-edit"></div>
+    <details class="d-advanced" id="d-advanced">
+      <summary>Advanced</summary>
+      <p class="d-small">Full styling controls for people who know CSS.</p>
+      <div class="d-adv-tabs">
+        <button type="button" class="on" data-atab="styles">Styles</button>
+        <button type="button" data-atab="traits">Attributes</button>
+        <button type="button" data-atab="layers">Layers</button>
+      </div>
+      <div data-apane="styles"><div id="d-adv-selectors"></div><div id="d-adv-styles"></div></div>
+      <div data-apane="traits" hidden><div id="d-adv-traits"></div></div>
+      <div data-apane="layers" hidden><div id="d-adv-layers"></div></div>
+      <div class="d-row mt">
+        <button type="button" class="d-btn sm" id="d-code">View code</button>
+        <button type="button" class="d-btn sm" id="d-import">Import HTML</button>
+      </div>
+    </details>
+  </aside>
+</div>
+
+<div id="d-tpl" class="d-modal" hidden>
+  <div class="d-modal-box d-tpl-box">
+    <div class="d-tpl-head">
+      <div><h3>Start from a template</h3><p>Replaces this page's design. Your sign-in methods and settings stay the same.</p></div>
+      <button type="button" class="d-x" data-close>×</button>
+    </div>
+    <div id="d-tpl-chips" class="d-chips"></div>
+    <div id="d-tpl-grid" class="d-tpl-grid"></div>
+    <label class="d-keep"><input type="checkbox" id="d-keep-accent"> Keep my current button colour</label>
+  </div>
+</div>
+
+<div id="d-modal" class="d-modal" hidden>
+  <div class="d-modal-box">
+    <h3>Import HTML / CSS</h3>
+    <p>Paste a full page or a fragment. Include <code>&lt;div data-portal-login&gt;&lt;/div&gt;</code> where the sign-in box should go, or add the "Sign-in box" block afterwards.</p>
+    <label>HTML<textarea id="d-imp-html" rows="10" spellcheck="false"></textarea></label>
+    <label>CSS<textarea id="d-imp-css" rows="6" spellcheck="false"></textarea></label>
+    <div class="d-modal-actions"><button type="button" id="d-imp-cancel">Cancel</button><button type="button" id="d-imp-ok" class="primary">Replace page</button></div>
+  </div>
+</div>
+
+<script>
+  window.CP = {
+    profileId: <%- JSON.stringify(p.id) %>,
+    html: <%- JSON.stringify(p.design_html).replace(/</g, '\\u003c') %>,
+    css: <%- JSON.stringify(p.design_css).replace(/</g, '\\u003c') %>,
+    project: <%- (p.design_project || 'null').replace(/</g, '\\u003c') %>,
+    accent: <%- JSON.stringify(p.options.accent) %>,
+    theme: <%- JSON.stringify(p.options.widget_theme === 'dark' ? 'dark' : 'light') %>,
+    csrf: <%- JSON.stringify(csrf) %>
+  };
+</script>
+<script src="/static/vendor/grapes.min.js"></script>
+<script src="/static/vendor/gjs-style-bg.js"></script>
+<script src="/static/designer.js"></script>
+</body>
+</html>

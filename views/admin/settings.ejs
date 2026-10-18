@@ -1,0 +1,524 @@
+<%- include('partials/head', { title: 'Settings' }) %>
+<%
+  const cb = function (p) { return callbackBase + '/auth/' + p + '/callback'; };
+  const secretInput = function (name, val, placeholder) {
+    return '<input type="password" name="' + name + '" autocomplete="new-password" placeholder="' + (val ? 'Saved. Leave blank to keep it' : (placeholder || '')) + '">' +
+      (val ? '<label class="check small subtle"><input type="checkbox" name="clear_' + name + '"> Remove saved value</label>' : '');
+  };
+  const copy = function (text) { return '<span class="copy-field"><code>' + text.replace(/&/g, '&amp;').replace(/</g, '&lt;') + '</code><button type="button" class="copy-btn" data-copy="' + text.replace(/"/g, '&quot;') + '" title="Copy">' + icon('copy', 15) + '</button></span>'; };
+  const connected = !!(unifiCfg.username || unifiCfg.api_key);
+  const typeHelp = {
+    google: 'Google Cloud Console → APIs & Services → Credentials → Create OAuth client ID (Web application). Add the redirect URL below.',
+    microsoft: 'Entra admin centre → App registrations → New registration (platform: Web). Add the redirect URL below, then create a client secret.',
+    facebook: 'developers.facebook.com → your app → Facebook Login → Settings → Valid OAuth Redirect URIs.',
+    apple: 'Apple Developer → Identifiers → Services ID with Sign in with Apple enabled. Add the redirect URL as a Return URL.',
+    oidc: 'Okta, Authentik, Keycloak, Auth0, JumpCloud and other OpenID Connect providers. Register the redirect URL below.',
+    saml: 'Entra ID, Okta, ADFS, Google Workspace and other SAML identity providers.',
+  };
+%>
+<div class="page-head"><div><h1>Settings</h1></div></div>
+
+<div class="settings">
+  <nav class="subnav" id="subnav">
+    <a href="#unifi"><%- icon('server', 17) %>Controller</a>
+    <a href="#hotspot"><%- icon('wifi', 17) %>Hotspot setup</a>
+    <a href="#sso"><%- icon('key', 17) %>Sign-in providers</a>
+    <a href="#backup"><%- icon('download', 17) %>Backup &amp; restore</a>
+    <a href="#account"><%- icon('user', 17) %>Account</a>
+  </nav>
+
+  <div class="settings-body">
+  <!-- ============ CONTROLLER ============ -->
+  <section class="tab" id="unifi">
+    <div class="card">
+      <div class="card-head row">
+        <div><h2>UniFi controller</h2><p class="muted">The portal uses this to let guests online once they've signed in.</p></div>
+        <span class="status <%= connected ? 'ok' : '' %>"><%= connected ? 'Configured' : 'Not connected' %></span>
+      </div>
+      <form method="post" action="/admin/settings/unifi" class="stack">
+        <input type="hidden" name="_csrf" value="<%= csrf %>">
+        <div>
+          <span class="label">Controller type</span>
+          <div class="choice-cards">
+            <label class="choice"><input type="radio" name="controller_type" value="unifios" <%= unifiCfg.controller_type !== 'standalone' ? 'checked' : '' %>>
+              <span><b>UniFi OS console</b><small>UCG Ultra / Max, UDM, UDR, UX, Cloud Key Gen2+</small></span></label>
+            <label class="choice"><input type="radio" name="controller_type" value="standalone" <%= unifiCfg.controller_type === 'standalone' ? 'checked' : '' %>>
+              <span><b>Standalone controller</b><small>Self-hosted Network Application or Cloud Key Gen1, e.g. with a USG</small></span></label>
+          </div>
+        </div>
+        <div class="grid2">
+          <label>Controller URL <input name="url" value="<%= unifiCfg.url %>" placeholder="https://192.168.1.1" required>
+            <small data-ctype="unifios">The address you use to open the UniFi web UI, e.g. https://192.168.1.1</small>
+            <small data-ctype="standalone">Include the port, usually :8443, e.g. https://192.168.1.10:8443</small></label>
+          <label>Site <input name="site" value="<%= unifiCfg.site %>" placeholder="default"><small>Leave as <code>default</code> unless you use multiple sites.</small></label>
+        </div>
+        <div data-ctype="unifios">
+          <span class="label">Sign in with</span>
+          <div class="seg mt-xs">
+            <label><input type="radio" name="auth_mode" value="credentials" <%= unifiCfg.auth_mode !== 'apikey' ? 'checked' : '' %>> Local admin account</label>
+            <label><input type="radio" name="auth_mode" value="apikey" <%= unifiCfg.auth_mode === 'apikey' ? 'checked' : '' %>> API key</label>
+          </div>
+        </div>
+        <div class="grid2" data-mode="credentials">
+          <label>Username <input name="username" value="<%= unifiCfg.username %>" autocomplete="off"></label>
+          <label>Password <%- secretInput('password', unifiCfg.password) %></label>
+          <p class="hint span2">Create a dedicated admin: <b>Admins &amp; Users → Create New Admin</b>, tick <b>Restrict to local access only</b>, role <b>Site Admin</b>. Avoid accounts with 2FA or a UI.com login.</p>
+        </div>
+        <div class="grid2" data-mode="apikey">
+          <label class="span2">API key <%- secretInput('api_key', unifiCfg.api_key, 'Paste the key from UniFi') %></label>
+          <p class="hint span2">UniFi Network → <b>Settings → Control Plane → Integrations → Create API Key</b> (Network 9.0+).</p>
+        </div>
+        <label class="check"><input type="checkbox" name="verify_tls" <%= unifiCfg.verify_tls ? 'checked' : '' %>> Verify the controller's TLS certificate <span class="muted">(leave off for the default self-signed certificate)</span></label>
+        <div class="actions">
+          <button class="btn primary" name="action" value="test">Save &amp; test connection</button>
+          <button class="btn" name="action" value="save">Save</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>SSID auto-discovery</h2><p class="muted">Regularly checks your controller for WiFi networks with the hotspot portal switched on.</p></div>
+      <form method="post" action="/admin/settings/ssid-sync" class="stack">
+        <input type="hidden" name="_csrf" value="<%= csrf %>">
+        <label class="toggle-row"><span class="switch"><input type="checkbox" name="enabled" <%= syncCfg.enabled ? 'checked' : '' %>><span></span></span>
+          <span><b>Check the controller automatically</b><small>Runs at start-up and then on the interval below.</small></span></label>
+        <label class="toggle-row"><span class="switch"><input type="checkbox" name="auto_create" <%= syncCfg.auto_create ? 'checked' : '' %>><span></span></span>
+          <span><b>Create a profile for each new portal SSID</b><small>Copies the default profile's design and sign-in methods, so it works straight away.</small></span></label>
+        <label class="narrow">Check every <span class="input-unit"><input type="number" name="interval_min" min="1" max="1440" value="<%= syncCfg.interval_min %>"><em>min</em></span></label>
+        <div class="actions"><button class="btn primary">Save</button></div>
+      </form>
+    </div>
+  </section>
+
+  <!-- ============ HOTSPOT ============ -->
+  <section class="tab" id="hotspot">
+    <div class="card" id="public-url">
+      <div class="card-head row">
+        <div><h2>Public HTTPS address</h2><p class="muted">The hostname guests and sign-in providers use. Google, Microsoft, Facebook, Apple, OIDC and SAML only accept <code>https://</code>. It can be internal-only.</p></div>
+        <span class="status <%= publicUrl ? 'ok' : '' %>"><%= publicUrl ? 'Set' : 'Not set' %></span>
+      </div>
+      <form method="post" action="/admin/settings/public-url" class="stack">
+        <input type="hidden" name="_csrf" value="<%= csrf %>">
+        <label>Address <input name="public_url" value="<%= publicUrl %>" placeholder="https://wifi.yourdomain.co.uk" inputmode="url" autocomplete="off">
+          <% if (publicUrlFromEnv) { %><small>Currently coming from <code>PUBLIC_URL</code> in <code>.env</code>. Saving here overrides it.</small><% } %></label>
+        <div class="howto">
+          <b>Keep it internal:</b> add a local DNS record on your gateway (<i>Settings → Routing → DNS / Policy Table → DNS Records</i>) pointing
+          <code><%= portalHost || 'the hostname' %></code> at <code><%= portalIp || 'this server' %></code>, and add the hostname to the hotspot's <i>Pre-Authorization Allowances</i>.
+          No public DNS record or port forwarding is needed. The certificate below is issued with a DNS check.
+        </div>
+        <div class="actions"><button class="btn primary">Save address</button></div>
+      </form>
+    </div>
+
+    <div class="card" id="certificate">
+      <div class="card-head row">
+        <div><h2>HTTPS certificate</h2><p class="muted">Get a free Let's Encrypt certificate automatically through your DNS provider, add the DNS record yourself, or upload your own.</p></div>
+        <% if (cert && tlsActive) { %><span class="status <%= cert.days_left <= 30 ? 'warn' : 'ok' %>"><%= cert.days_left <= 30 ? 'Renew soon' : 'Active' %></span>
+        <% } else if (tlsPending) { %><span class="status warn">In progress</span>
+        <% } else { %><span class="status">None</span><% } %>
+      </div>
+
+      <% if (!publicUrl) { %>
+        <div class="empty"><%- icon('lock', 22) %><p>Set the public HTTPS address above first.</p></div>
+      <% } else { %>
+
+        <% if (cert) { %>
+          <div class="cert-summary <%= tlsActive ? '' : 'bad' %>">
+            <span class="cert-ico"><%- icon(tlsActive ? 'shield' : 'alert', 20) %></span>
+            <div class="grow">
+              <b><%= cert.names.join(', ') %></b>
+              <small>Issued by <%= cert.issuer %><%= cert.staging ? ' (test certificate, not trusted by phones)' : '' %> · expires <%= fmtTime(cert.expires) %>
+                <% if (cert.expires > Date.now() / 1000) { %>(<%= cert.days_left %> days)<% } else { %><b class="warn-text">expired</b><% } %>
+                <% if (!tlsActive && cert.expires > Date.now() / 1000) { %> · <span class="warn-text">doesn't match <%= portalHost %></span><% } %></small>
+            </div>
+          </div>
+          <% const src = cert.source || {}; const autoOn = src.type === 'auto' && dnsCfg.auto_renew; %>
+          <% if (tlsActive) { %><p class="hint mt">
+            <b><%= src.type === 'auto' ? 'Issued automatically via ' + src.provider : src.type === 'upload' ? 'Uploaded certificate' : 'Issued with a manual DNS record' %>.</b>
+            Guests are being moved onto <code><%= publicUrl %></code>.
+            <%= autoOn ? 'It renews automatically about 30 days before it expires.' : src.type === 'upload' ? 'Upload a replacement before it expires. The dashboard will remind you.' : (cert.days_left <= 30 ? 'Renew now.' : 'Renew any time in the last 30 days. The dashboard will remind you.') %></p><% } %>
+        <% } %>
+
+        <% const certAt = cert && cert.source && cert.source.at || 0;
+           if (tlsJob && (tlsRunning || (tlsJob.finished && tlsJob.finished >= certAt - 5 && Date.now() / 1000 - tlsJob.finished < 86400))) { %>
+          <div class="job <%= tlsRunning ? 'running' : tlsJob.status %>" id="tls-job" data-running="<%= tlsRunning ? 1 : 0 %>">
+            <div class="job-head"><span class="status <%= tlsRunning ? 'warn' : (tlsJob.status === 'ok' ? 'ok' : 'bad') %>"><%= tlsRunning ? 'Working…' : (tlsJob.status === 'ok' ? 'Completed' : 'Failed') %></span>
+              <span class="muted small"><%= tlsJob.trigger === 'renewal' ? 'Automatic renewal' : 'Certificate request' %> via <%= tlsJob.provider %> · started <%= fmtAgo(tlsJob.started) %></span></div>
+            <ol class="job-log"><% (tlsJob.log || []).forEach(function (l) { %><li><%= l.msg %></li><% }) %></ol>
+          </div>
+        <% } %>
+
+        <% const cmode = tlsPending ? 'manual' : (dnsCfg.provider ? 'auto' : ((cert && cert.source && cert.source.type) === 'upload' ? 'upload' : 'auto')); %>
+        <div class="seg cmode mt" id="cmode">
+          <label><input type="radio" name="cmode" value="auto" <%= cmode === 'auto' ? 'checked' : '' %>> Automatic</label>
+          <label><input type="radio" name="cmode" value="manual" <%= cmode === 'manual' ? 'checked' : '' %>> Manual DNS record</label>
+          <label><input type="radio" name="cmode" value="upload" <%= cmode === 'upload' ? 'checked' : '' %>> Upload my own</label>
+        </div>
+
+        <!-- ===== automatic via DNS provider ===== -->
+        <div class="cpane" data-cpane="auto">
+          <p class="hint">The portal adds and removes the verification record through your DNS provider's API, and renews the certificate automatically. Nothing needs to be public.</p>
+          <form method="post" action="/admin/settings/tls/dns" class="stack" id="dns-form">
+            <input type="hidden" name="_csrf" value="<%= csrf %>">
+            <span class="label">DNS provider</span>
+            <div class="type-picker">
+              <% dnsProviderList.forEach(function (pr) { %>
+                <label class="type-opt"><input type="radio" name="provider" value="<%= pr.id %>" <%= dnsCfg.provider === pr.id ? 'checked' : '' %> required><span><%= pr.name %></span></label>
+              <% }) %>
+            </div>
+            <% dnsProviderList.forEach(function (pr) { const mine = dnsCfg.provider === pr.id; %>
+              <div class="prov-fields" data-prov="<%= pr.id %>" hidden>
+                <p class="hint"><%= pr.help %></p>
+                <div class="grid2">
+                <% pr.fields.forEach(function (f) { const saved = mine && dnsCfg[f.key]; %>
+                  <label class="<%= f.textarea ? 'span2' : '' %>"><%= f.label %>
+                    <% if (f.textarea) { %><textarea name="<%= pr.id %>__<%= f.key %>" rows="5" placeholder="<%= saved ? 'Saved. Leave blank to keep it' : (f.placeholder || '') %>"><%= f.secret ? '' : (mine ? dnsCfg[f.key] : '') %></textarea>
+                    <% } else { %><input name="<%= pr.id %>__<%= f.key %>" type="<%= f.secret ? 'password' : 'text' %>" autocomplete="off" value="<%= f.secret ? '' : (mine ? (dnsCfg[f.key] || '') : '') %>" placeholder="<%= f.secret && saved ? 'Saved. Leave blank to keep it' : (f.placeholder || '') %>"><% } %>
+                  </label>
+                <% }) %>
+                </div>
+              </div>
+            <% }) %>
+            <div class="grid2">
+              <label>Zone <span class="muted">(optional)</span><input name="zone" value="<%= dnsCfg.zone %>" placeholder="Worked out automatically, e.g. example.com"></label>
+              <label class="toggle-row end"><span class="switch"><input type="checkbox" name="auto_renew" <%= dnsCfg.auto_renew ? 'checked' : '' %>><span></span></span>
+                <span><b>Renew automatically</b><small>About 30 days before expiry. Checked every 6 hours.</small></span></label>
+            </div>
+            <div class="actions">
+              <button class="btn" name="action" value="save">Save</button>
+              <button class="btn" name="action" value="test">Save &amp; test connection</button>
+              <button class="btn primary" name="action" value="issue" <%= tlsRunning ? 'disabled' : '' %>><%- icon('lock', 16) %><%= cert ? 'Save & renew now' : 'Save & get certificate' %></button>
+            </div>
+          </form>
+        </div>
+
+        <!-- ===== upload your own ===== -->
+        <div class="cpane" data-cpane="upload">
+          <p class="hint">Use a certificate you already have, e.g. from your domain registrar or a wildcard certificate. It must cover <code><%= portalHost %></code>. You'll need to upload a new one before it expires.</p>
+          <form method="post" action="/admin/settings/tls/upload?_csrf=<%= encodeURIComponent(csrf) %>" enctype="multipart/form-data" class="stack">
+            <div class="seg" id="upmode">
+              <label><input type="radio" name="upmode" value="pem" checked> Certificate + key (PEM)</label>
+              <label><input type="radio" name="upmode" value="pfx"> .pfx / .p12 file</label>
+            </div>
+            <div data-upmode="pem" class="stack">
+              <label>Certificate, including the chain if you have it <textarea name="cert_pem" rows="5" placeholder="-----BEGIN CERTIFICATE-----"></textarea>
+                <small>Or choose a file: <input type="file" name="cert_file" accept=".pem,.crt,.cer,.txt"></small></label>
+              <label>Private key <textarea name="key_pem" rows="5" placeholder="-----BEGIN PRIVATE KEY-----"></textarea>
+                <small>Or choose a file: <input type="file" name="key_file" accept=".pem,.key,.txt"> Must not be password-protected.</small></label>
+            </div>
+            <div data-upmode="pfx" class="stack" hidden>
+              <label>.pfx / .p12 file <input type="file" name="pfx_file" accept=".pfx,.p12"></label>
+              <label class="narrow">Password <input type="password" name="pfx_password" autocomplete="off"></label>
+            </div>
+            <div class="actions"><button class="btn primary"><%- icon('lock', 16) %>Check &amp; install certificate</button></div>
+          </form>
+        </div>
+
+        <!-- ===== manual DNS record ===== -->
+        <div class="cpane" data-cpane="manual">
+
+        <% if (!tlsPending) { %>
+          <% if (!tlsActive) { %>
+          <div class="cert-steps">
+            <div class="cstep"><span>1</span><div><b>Request</b><small>We ask Let's Encrypt for a certificate for <code><%= portalHost %></code>.</small></div></div>
+            <div class="cstep"><span>2</span><div><b>Add a TXT record</b><small>We show you exactly what to add at your DNS provider.</small></div></div>
+            <div class="cstep"><span>3</span><div><b>Verify &amp; install</b><small>Once it's visible, the certificate is issued and HTTPS turns on.</small></div></div>
+          </div>
+          <% } %>
+          <form method="post" action="/admin/settings/tls/start" class="actions mt">
+            <input type="hidden" name="_csrf" value="<%= csrf %>">
+            <button class="btn primary"><%- icon('lock', 16) %><%= cert ? 'Renew certificate' : 'Request certificate' %></button>
+          </form>
+        <% } else { const P = tlsPending; %>
+          <div class="cert-flow" id="cert-flow" data-csrf="<%= csrf %>">
+            <% if (P.records.length) { %>
+              <div class="cstep-head"><span class="num">2</span><div><b>Add this TXT record at your DNS provider</b><small>Leave any existing records alone. You'll need to do this again at each renewal (about every 60–90 days).</small></div></div>
+              <% P.records.forEach(function (r) { %>
+                <div class="dns-record">
+                  <div><span class="label">Type</span><code class="big">TXT</code></div>
+                  <div><span class="label">Name / host</span><%- copy(r.host || r.name) %>
+                    <% if (r.host) { %><small class="muted">Most DNS panels in the <b><%= r.zone %></b> zone want this short form. If yours wants the full name: <code><%= r.name %></code></small><% } %></div>
+                  <div><span class="label">Value / content</span><%- copy(r.value) %></div>
+                  <div><span class="label">TTL</span><code class="big">60</code> <small class="muted">or the lowest allowed</small></div>
+                </div>
+              <% }) %>
+              <div class="cstep-head mt"><span class="num">3</span><div><b>Check, then verify</b><small>DNS changes can take a few minutes. Check until every server shows the record, then verify.</small></div></div>
+              <div id="dns-result" class="dns-result" <%= P.last_check ? '' : 'hidden' %>>
+                <% if (P.last_check) { P.last_check.results.forEach(function (r) { r.answers.forEach(function (a) { %>
+                  <div class="dns-row <%= a.ok ? 'ok' : '' %>"><span class="status <%= a.ok ? 'ok' : 'warn' %>"><%= a.ok ? 'Found' : (a.error || 'Different value') %></span><code><%= a.server %></code></div>
+                <% }) }) } %>
+              </div>
+            <% } else { %>
+              <p class="hint">Let's Encrypt has already validated this name recently, so no TXT record is needed. Click verify to issue the certificate.</p>
+            <% } %>
+            <% if (P.error) { %><div class="flash err slim mt"><%- icon('alert', 16) %><span><%= P.error %></span></div><% } %>
+            <% if (P.status === 'failed') { %>
+            <div class="actions mt">
+              <form method="post" action="/admin/settings/tls/start" class="inline-form"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn primary"><%- icon('lock', 16) %>Start a new request</button></form>
+              <form method="post" action="/admin/settings/tls/cancel" class="inline-form"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn ghost">Cancel</button></form>
+            </div>
+            <% } else { %>
+            <div class="actions mt">
+              <% if (P.records.length) { %><button type="button" class="btn" id="dns-check"><%- icon('search', 16) %>Check DNS</button><% } %>
+              <button type="button" class="btn primary" id="cert-finish" <%= P.records.length && !(P.last_check && P.last_check.ok) ? 'data-unconfirmed=1' : '' %>><%- icon('shield', 16) %>Verify &amp; issue certificate</button>
+              <form method="post" action="/admin/settings/tls/cancel" class="inline-form" data-confirm="Cancel this certificate request?"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn ghost">Cancel</button></form>
+            </div>
+            <% } %>
+            <p class="muted small mt">Started <%= fmtAgo(P.created_at) %> for <code><%= P.domain %></code><%= P.environment === 'staging' ? ' · staging (test) CA' : '' %>. Requests expire after about a week.</p>
+          </div>
+        <% } %>
+
+        </div>
+
+        <details class="advanced">
+          <summary>Advanced</summary>
+          <form method="post" action="/admin/settings/tls" class="stack mt">
+            <input type="hidden" name="_csrf" value="<%= csrf %>">
+            <div class="grid2">
+              <label>Email for expiry notices <input type="email" name="email" value="<%= tlsCfg.email %>" placeholder="Optional"><small>Let's Encrypt may email you before the certificate expires.</small></label>
+              <div><span class="label">Certificate authority</span>
+                <div class="seg mt-xs">
+                  <label><input type="radio" name="environment" value="production" <%= tlsCfg.environment !== 'staging' ? 'checked' : '' %>> Let's Encrypt</label>
+                  <label><input type="radio" name="environment" value="staging" <%= tlsCfg.environment === 'staging' ? 'checked' : '' %>> Staging (testing)</label>
+                </div><small class="hint">Staging has generous rate limits for practice runs, but phones won't trust its certificates.</small></div>
+            </div>
+            <div class="actions"><button class="btn">Save</button>
+              <% if (cert) { %><button class="btn ghost danger" form="cert-remove">Remove installed certificate</button><% } %></div>
+          </form>
+          <% if (cert) { %><form method="post" action="/admin/settings/tls/remove" id="cert-remove" data-confirm="Remove the certificate? Guests will stay on plain HTTP and SSO will stop working." hidden><input type="hidden" name="_csrf" value="<%= csrf %>"></form><% } %>
+        </details>
+      <% } %>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>Set up the hotspot in UniFi</h2><p class="muted">Do this once for each SSID that should use this portal.</p></div>
+      <ol class="steps">
+        <li><b>Turn on the portal for the SSID.</b> <span>Settings → WiFi → edit the network → enable <i>Hotspot Portal</i> (or <i>Guest Hotspot</i>).</span></li>
+        <li><b>Point UniFi at this server.</b> <span>Hotspot settings → Authentication → <i>External Portal Server</i> → <%- copy(portalIp || 'this server’s IP') %></span></li>
+        <li><b>Switch off HTTPS redirection.</b> <span>Turn off <i>HTTPS redirection / Encrypted redirect URL</i>. The portal handles the redirect after sign-in itself.</span></li>
+        <li><b>Allow the portal before sign-in.</b> <span>Add this server's IP<% if (portalHost) { %> and <code><%= portalHost %></code><% } %> to <i>Pre-Authorization Allowances</i>, plus the SSO domains below.</span></li>
+        <li><b>Match the names.</b> <span>Each profile's SSID name must match the WiFi name. Auto-discovery does this for you.</span></li>
+      </ol>
+    </div>
+    <div class="card">
+      <div class="card-head"><h2>Pre-authorisation allowances</h2><p class="muted">Guests must reach these before they've signed in, or SSO pages won't load.</p></div>
+      <% if (!walled.length) { %>
+        <div class="empty"><%- icon('shield', 22) %><p>No SSO providers are set up yet. Vouchers, passwords, email and click-through only need this server's IP.</p></div>
+      <% } else { walled.forEach(function (w) { %>
+        <div class="walled"><span class="m-ico"><%- methodIcon(w.type) %></span><b><%= w.name %></b><%- copy(w.domains.join(', ')) %></div>
+      <% }) } %>
+    </div>
+  </section>
+
+  <!-- ============ SSO ============ -->
+  <section class="tab" id="sso">
+    <% if (!publicUrl) { %>
+      <div class="callout warn">
+        <span class="callout-ico"><%- icon('lock', 20) %></span>
+        <div><b>Set a public HTTPS address first</b><p>Callback URLs below currently use <code><%= callbackBase %></code>, which providers will reject.</p></div>
+        <a class="btn" href="#public-url">Set address</a>
+      </div>
+    <% } %>
+    <div class="card flush">
+      <div class="card-head pad row">
+        <div><h2>Sign-in providers</h2><p class="muted">Add as many as you need, even several of the same type (e.g. two Entra ID tenants), then switch each on per network.</p></div>
+      </div>
+      <% if (!ssoProviders.length) { %>
+        <div class="empty"><%- icon('key', 22) %><p>No providers yet. Add one below.</p></div>
+      <% } %>
+      <% ssoProviders.forEach(function (c) { const k = c.id; const T = SSO_TYPES[c.type]; const ok = ssoConfigured(c); %>
+      <details class="provider" id="sso-<%= k %>">
+        <summary>
+          <span class="m-ico lg"><%- methodIcon(c.type) %></span>
+          <span class="grow"><b><%= ssoName(c) %></b><small><%= T.label %> · <code class="idtag"><%= k %></code></small></span>
+          <span class="status <%= ok ? 'ok' : 'warn' %>"><%= ok ? 'Ready' : 'Needs credentials' %></span>
+          <span class="chev"><%- icon('chevron', 16) %></span>
+        </summary>
+        <div class="provider-body">
+          <p class="hint"><%= typeHelp[c.type] %></p>
+          <% if (c.type === 'microsoft' && !tenantPinned(c)) { %>
+            <div class="flash warn slim"><%- icon('alert', 16) %><span><b>Not pinned to your organisation.</b> Any Microsoft organisation can sign in, and their admins can set any email address, so <i>email-domain rules won't work</i> with this provider (sign-ins are refused when a network has one). Set <b>Tenant</b> to your tenant ID, or add it under <b>Allowed tenant IDs</b>.</span></div>
+          <% } %>
+          <% if (c.type !== 'saml') { %>
+            <span class="label">Redirect / callback URL</span><%- copy(cb(k)) %>
+          <% } else { %>
+            <div class="grid2">
+              <div><span class="label">ACS URL</span><%- copy(cb(k)) %></div>
+              <div><span class="label">SP entity ID</span><%- copy(c.sp_entity_id || callbackBase + '/auth/' + k + '/metadata') %></div>
+            </div>
+            <p class="hint">Or give your IdP the metadata: <a href="/auth/<%= k %>/metadata" target="_blank">/auth/<%= k %>/metadata</a></p>
+          <% } %>
+          <form method="post" action="/admin/settings/sso/<%= k %>" class="stack mt">
+            <input type="hidden" name="_csrf" value="<%= csrf %>">
+            <label>Button label <input name="label" value="<%= c.label %>" placeholder="<%= T.button %>"><small>What guests see, and how it's named here. E.g. “Sign in with Head Office”.</small></label>
+            <% if (c.type === 'google') { %>
+              <div class="grid2"><label>Client ID <input name="client_id" value="<%= c.client_id %>"></label>
+              <label>Client secret <%- secretInput('client_secret', c.client_secret) %></label></div>
+            <% } else if (c.type === 'microsoft') { %>
+              <div class="grid2"><label>Application (client) ID <input name="client_id" value="<%= c.client_id %>"></label>
+              <label>Client secret <%- secretInput('client_secret', c.client_secret) %></label></div>
+              <div class="grid2"><label>Tenant <input name="tenant" value="<%= c.tenant %>"><small><code>common</code> any account · <code>organizations</code> work/school only · or a tenant ID</small></label>
+              <label>Allowed tenant IDs <input name="allowed_tenants" value="<%= c.allowed_tenants %>" placeholder="Optional, comma-separated"></label></div>
+            <% } else if (c.type === 'facebook') { %>
+              <div class="grid2"><label>App ID <input name="app_id" value="<%= c.app_id %>"></label>
+              <label>App secret <%- secretInput('app_secret', c.app_secret) %></label></div>
+            <% } else if (c.type === 'apple') { %>
+              <div class="grid2"><label>Services ID <input name="client_id" value="<%= c.client_id %>" placeholder="com.example.wifi"></label>
+              <label>Team ID <input name="team_id" value="<%= c.team_id %>"></label></div>
+              <label class="narrow">Key ID <input name="key_id" value="<%= c.key_id %>"></label>
+              <label>Private key (.p8 contents) <textarea name="private_key" rows="4" placeholder="<%= c.private_key ? 'Saved. Leave blank to keep it' : '-----BEGIN PRIVATE KEY-----' %>"></textarea>
+                <% if (c.private_key) { %><label class="check small subtle"><input type="checkbox" name="clear_private_key"> Remove saved key</label><% } %></label>
+            <% } else if (c.type === 'oidc') { %>
+              <label>Issuer URL <input name="issuer" value="<%= c.issuer %>" placeholder="https://auth.example.com/…"></label>
+              <div class="grid2"><label>Client ID <input name="client_id" value="<%= c.client_id %>"></label>
+              <label>Client secret <%- secretInput('client_secret', c.client_secret, 'Optional for public clients') %></label></div>
+              <label>Scopes <input name="scope" value="<%= c.scope %>"></label>
+            <% } else if (c.type === 'saml') { %>
+              <label>IdP SSO URL <input name="entry_point" value="<%= c.entry_point %>" placeholder="https://idp.example.com/sso/saml"></label>
+              <div class="grid2"><label>IdP entity ID <input name="idp_issuer" value="<%= c.idp_issuer %>" placeholder="Optional"></label>
+              <label>SP entity ID <input name="sp_entity_id" value="<%= c.sp_entity_id %>" placeholder="Defaults to the metadata URL"></label></div>
+              <label>IdP signing certificate <textarea name="idp_cert" rows="4" placeholder="-----BEGIN CERTIFICATE-----"><%= c.idp_cert %></textarea></label>
+              <label>Email attribute <input name="email_attribute" value="<%= c.email_attribute %>" placeholder="Optional. Defaults to email / mail / NameID"></label>
+            <% } %>
+            <div class="actions">
+              <button class="btn primary">Save</button>
+              <button class="btn ghost danger" form="del-<%= k %>">Remove provider</button>
+            </div>
+          </form>
+          <form method="post" action="/admin/settings/sso/<%= k %>/delete" id="del-<%= k %>" data-confirm="Remove <%= ssoName(c) %>? Networks using it will stop showing this button." hidden><input type="hidden" name="_csrf" value="<%= csrf %>"></form>
+        </div>
+      </details>
+      <% }) %>
+      <form method="post" action="/admin/settings/sso" class="add-provider">
+        <input type="hidden" name="_csrf" value="<%= csrf %>">
+        <span class="label">Add a provider</span>
+        <div class="type-picker">
+          <% Object.keys(SSO_TYPES).forEach(function (t) { %>
+            <label class="type-opt"><input type="radio" name="type" value="<%= t %>" required><span><span class="m-ico"><%- methodIcon(t) %></span><%= SSO_TYPES[t].label %></span></label>
+          <% }) %>
+        </div>
+        <div class="inline add-row">
+          <input name="label" placeholder="Button label (optional), e.g. Sign in with Partner Co">
+          <button class="btn primary"><%- icon('plus', 16) %>Add provider</button>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <!-- ============ BACKUP ============ -->
+  <section class="tab" id="backup">
+    <% if (staged) { const c = staged.counts || {}; %>
+    <div class="card restore-confirm">
+      <div class="card-head"><h2>Ready to restore</h2><p class="muted">Check this is the right backup. Nothing has changed yet.</p></div>
+      <div class="restore-facts">
+        <div><span>Backup made</span><b><%= fmtTime(staged.created) %></b></div>
+        <div><span>Portal address</span><b><%= staged.host || '—' %></b></div>
+        <div><span>Networks</span><b><%= c.profiles %></b></div>
+        <div><span>Vouchers</span><b><%= c.vouchers %></b></div>
+        <div><span>Sessions</span><b><%= c.sessions %></b></div>
+        <div><span>Images</span><b><%= c.uploads %></b></div>
+        <div><span>HTTPS certificate</span><b><%= c.certificate ? 'Included' : 'None' %></b></div>
+        <div><span>Admin accounts</span><b><%= (c.admins_list || []).join(', ') %></b></div>
+      </div>
+      <div class="flash warn slim"><%- icon('alert', 16) %><span>Everything is replaced with the backup, <b>including admin accounts and passwords</b>, so afterwards you sign in with the accounts listed above. A safety backup of the current state is taken first, so you can undo this.</span></div>
+      <form method="post" action="/admin/settings/backup/apply" class="inline-row">
+        <input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="token" value="<%= staged.token %>">
+        <label class="grow">Your admin password, to confirm <input type="password" name="admin_password" autocomplete="current-password" required></label>
+        <button class="btn primary">Restore now</button>
+      </form>
+      <form method="post" action="/admin/settings/backup/cancel" class="mt"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn ghost">Cancel</button></form>
+    </div>
+    <% } %>
+
+    <div class="card">
+      <div class="card-head"><h2>Download a backup</h2><p class="muted">One file with everything: networks, page designs, images, vouchers, sessions, admin accounts and 2FA, sign-in providers, UniFi connection and HTTPS certificate.</p></div>
+      <form method="post" action="/admin/settings/backup/download" class="stack narrow-form" data-download>
+        <input type="hidden" name="_csrf" value="<%= csrf %>">
+        <label>Backup password <input type="password" name="password" minlength="8" autocomplete="new-password" required>
+          <small>The file contains private keys and passwords, so it's always encrypted. You'll need this password to restore it, and it can't be recovered.</small></label>
+        <label>Confirm password <input type="password" name="confirm" minlength="8" autocomplete="new-password" required></label>
+        <div class="actions"><button class="btn primary"><%- icon('download', 16) %>Download backup</button></div>
+      </form>
+    </div>
+
+    <div class="card">
+      <div class="card-head row">
+        <div><h2>Backups on this server</h2><p class="muted">Handy for undoing a mistake. Download one now and then too, in case this server's disk fails.</p></div>
+        <form method="post" action="/admin/settings/backup/now"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn"><%- icon('plus', 16) %>Back up now</button></form>
+      </div>
+      <form method="post" action="/admin/settings/backup/config" class="inline-row">
+        <input type="hidden" name="_csrf" value="<%= csrf %>">
+        <label class="toggle-row"><span class="switch"><input type="checkbox" name="auto" <%= backupCfg.auto ? 'checked' : '' %>><span></span></span><span><b>Daily automatic backup</b></span></label>
+        <label class="narrow">Keep the last <span class="input-unit"><input type="number" name="keep" min="1" max="90" value="<%= backupCfg.keep %>"><em>days</em></span></label>
+        <button class="btn">Save</button>
+      </form>
+      <% if (!backups.length) { %>
+        <div class="empty"><%- icon('download', 22) %><p>No backups yet. The first automatic one is made a few minutes after the portal starts.</p></div>
+      <% } else { %>
+      <div class="table-wrap plain mt">
+      <table class="table">
+        <thead><tr><th>Made</th><th>Type</th><th>Size</th><th class="right">Actions</th></tr></thead>
+        <tbody>
+        <% backups.forEach(function (b) { %>
+          <tr>
+            <td class="nowrap" title="<%= fmtTime(b.at) %>"><%= fmtTime(b.at) %></td>
+            <td><span class="pill"><%= { auto: 'Automatic', manual: 'Manual', 'pre-restore': 'Before restore' }[b.kind] || b.kind %></span></td>
+            <td><%= b.size > 1048576 ? (b.size / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(b.size / 1024)) + ' KB' %></td>
+            <td class="right">
+              <details class="menu">
+                <summary class="btn sm">Options <%- icon('chevron', 13) %></summary>
+                <div class="menu-pop wide">
+                  <form method="post" action="/admin/settings/backup/file/<%= b.name %>/restore"><input type="hidden" name="_csrf" value="<%= csrf %>"><button>Restore this backup…</button></form>
+                  <form method="post" action="/admin/settings/backup/file/<%= b.name %>/download" class="menu-form" data-download>
+                    <input type="hidden" name="_csrf" value="<%= csrf %>">
+                    <input type="password" name="password" minlength="8" placeholder="Password for the download" required>
+                    <button>Download (encrypted)</button>
+                  </form>
+                  <form method="post" action="/admin/settings/backup/file/<%= b.name %>/delete" data-confirm="Delete this backup?"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="danger">Delete</button></form>
+                </div>
+              </details>
+            </td>
+          </tr>
+        <% }) %>
+        </tbody>
+      </table>
+      </div>
+      <% } %>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>Restore from a file</h2><p class="muted">Upload a backup you downloaded earlier. You'll see what's in it before anything changes.</p></div>
+      <form method="post" action="/admin/settings/backup/upload?_csrf=<%= encodeURIComponent(csrf) %>" enctype="multipart/form-data" class="stack narrow-form">
+        <label>Backup file <input type="file" name="file" accept=".cpbak" required></label>
+        <label>Backup password <input type="password" name="password" autocomplete="off"></label>
+        <div class="actions"><button class="btn primary">Check backup</button></div>
+      </form>
+    </div>
+  </section>
+
+  <!-- ============ ACCOUNT ============ -->
+  <section class="tab" id="account">
+    <div class="card" id="admin-access">
+      <div class="card-head"><h2>Who can open the admin</h2><p class="muted">Keep the admin away from guests. Your address right now: <code><%= myIp %></code></p></div>
+      <form method="post" action="/admin/settings/admin-access" class="stack">
+        <input type="hidden" name="_csrf" value="<%= csrf %>">
+        <label class="toggle-row"><span class="switch"><input type="checkbox" name="block_guests" <%= adminAccess.block_guests ? 'checked' : '' %>><span></span></span>
+          <span><b>Block devices on the guest WiFi</b><small>Any device UniFi lists as a hotspot guest (on a portal SSID) is refused, even if signed in.</small></span></label>
+        <label>Only allow these networks <span class="muted">(optional)</span>
+          <input name="allowed" value="<%= adminAccess.allowed %>" placeholder="e.g. 192.168.10.0/24, 192.168.1.20">
+          <small>Comma-separated IPv4 addresses or networks. When set, <b>only</b> these can open the admin, and the guest check above is skipped. Your own address must be included.</small></label>
+        <p class="hint">Locked out? Add <code>ADMIN_ALLOW_ALL=1</code> to <code>.env</code>, run <code>docker compose up -d</code>, fix the setting, then remove it again.</p>
+        <div class="actions"><button class="btn primary">Save</button></div>
+      </form>
+    </div>
+    <div class="card">
+      <div class="card-head"><h2>Accounts &amp; sign-in</h2><p class="muted">Admin users, passwords and two-factor sign-in have their own pages.</p></div>
+      <div class="actions">
+        <a class="btn primary" href="/admin/account"><%- icon('user', 16) %>My account</a>
+        <a class="btn" href="/admin/users"><%- icon('users', 16) %>Manage users</a>
+      </div>
+    </div>
+  </section>
+  </div>
+</div>
+<%- include('partials/foot') %>

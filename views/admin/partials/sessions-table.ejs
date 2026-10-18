@@ -1,0 +1,57 @@
+<%
+  const devIcon = { phone: 'M8 2.5h8a1.5 1.5 0 0 1 1.5 1.5v16a1.5 1.5 0 0 1-1.5 1.5H8A1.5 1.5 0 0 1 6.5 20V4A1.5 1.5 0 0 1 8 2.5ZM11 18.5h2',
+    tablet: 'M6 2.5h12A1.5 1.5 0 0 1 19.5 4v16a1.5 1.5 0 0 1-1.5 1.5H6A1.5 1.5 0 0 1 4.5 20V4A1.5 1.5 0 0 1 6 2.5ZM11 18.5h2',
+    computer: 'M4 4.5h16a1 1 0 0 1 1 1V16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5.5a1 1 0 0 1 1-1ZM8 21h8M12 17v4',
+    other: 'M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0M2 9a14.5 14.5 0 0 1 20 0' };
+%>
+<div class="table-wrap">
+<table class="table sessions">
+  <thead><tr><th>When</th><th>Who</th><th>Device</th><% if (!compact) { %><th>IP address</th><% } %><th>Network</th><% if (!compact) { %><th>Method</th><% } %><th>Status</th><% if (!compact) { %><th></th><% } %></tr></thead>
+  <tbody>
+  <% if (!rows.length) { %><tr><td colspan="8"><div class="empty"><%- icon('users', 22) %><p>No sign-ins yet. They'll appear here as guests connect.</p></div></td></tr><% } %>
+  <% const tnow = Math.floor(Date.now() / 1000); rows.forEach(function (s) {
+       const active = !s.revoked && s.unifi_ok && s.expires_at > tnow;
+       const d = s.device || {};
+       const title = d.name || d.vendor || (d.os ? d.os.split(' · ')[0] : null) || 'Unknown device';
+       const sub = [d.os, d.name ? d.vendor : null].filter(Boolean).join(' · '); %>
+    <tr>
+      <td class="nowrap" title="<%= fmtTime(s.authorized_at) %>"><%= fmtAgo(s.authorized_at) %></td>
+      <td><% if (s.identity || s.name) { %><div class="who"><%= s.name || s.identity %></div><% if (s.name && s.identity) { %><div class="muted small"><%= s.identity %></div><% } %><% } else { %><span class="muted">Anonymous</span><% } %>
+        <% if (s.marketing) { %><span class="pill tiny">Opted in</span><% } %></td>
+      <td>
+        <div class="dev">
+          <span class="dev-ico"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="<%= devIcon[d.type] || devIcon.other %>"/></svg></span>
+          <div class="dev-text">
+            <div class="who"><%= title %></div>
+            <% if (sub) { %><div class="muted small"><%= sub %></div><% } %>
+            <code class="mac" title="Device ID (MAC address)"><%= s.mac %></code>
+            <% if (compact && s.ip) { %><span class="muted small"> · <%= s.ip %></span><% } %>
+          </div>
+        </div>
+      </td>
+      <% if (!compact) { %>
+      <td class="nowrap"><code class="ip"><%= s.ip || '—' %></code>
+        <% if (s.live && s.live.ip && s.live.ip !== s.ip) { %><div class="muted small">now <%= s.live.ip %></div><% } %></td>
+      <% } %>
+      <td><%= s.ssid || '—' %>
+        <% if (active && s.live) { %>
+          <div class="muted small"><% if (s.live.wired) { %>Wired<% } else { %><%= s.live.ap ? s.live.ap : 'Access point' %><% if (s.live.signal) { %> · <span class="sig sig-<%= s.live.signal.toLowerCase() %>" title="<%= s.live.dbm %> dBm"><%= s.live.signal %> signal</span><% } %><% } %></div>
+        <% } else if (s.profile_name && s.profile_name !== s.ssid) { %><div class="muted small"><%= s.profile_name %></div><% } %></td>
+      <% if (!compact) { %><td><span class="method-tag"><span class="m-ico"><%- methodIcon(s.method) %></span><%= methodLabel(s.method) %></span></td><% } %>
+      <td>
+        <% if (!s.unifi_ok) { %><span class="status bad" title="<%= s.unifi_msg %>">UniFi error</span>
+        <% } else if (s.revoked) { %><span class="status">Disconnected</span>
+        <% } else if (active) { %><span class="status ok" title="Until <%= fmtTime(s.expires_at) %>"><%= s.live ? 'Online' : 'Signed in' %></span>
+          <div class="muted small"><%= s.live ? s.live.data + ' used' : 'not connected right now' %></div>
+        <% } else { %><span class="status">Expired</span><% } %>
+      </td>
+      <% if (!compact) { %>
+      <td class="right"><% if (active) { %>
+        <form method="post" action="/admin/sessions/<%= s.id %>/revoke" data-confirm="Disconnect <%= title %> (<%= s.mac %>) now?"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn sm danger">Disconnect</button></form>
+      <% } %></td>
+      <% } %>
+    </tr>
+  <% }) %>
+  </tbody>
+</table>
+</div>

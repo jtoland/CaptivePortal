@@ -1,0 +1,77 @@
+<%- include('partials/head', { title: 'Vouchers' }) %>
+<div class="row-head"><h1>Vouchers</h1></div>
+
+<details class="card" <%= rows.length ? '' : 'open' %>>
+  <summary><b>+ Generate vouchers</b></summary>
+  <form method="post" action="/admin/vouchers" class="stack mt">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <div class="grid4">
+      <label>How many <input type="number" name="count" min="1" max="1000" value="10" required></label>
+      <label>Duration
+        <span class="inline"><input type="number" name="duration" min="1" value="1" required>
+        <select name="duration_unit"><option value="minutes">minutes</option><option value="hours">hours</option><option value="days" selected>days</option></select></span>
+        <small>Counted from first use</small></label>
+      <label>Devices per voucher <input type="number" name="max_uses" min="0" value="1"><small>0 = unlimited</small></label>
+      <label>Valid for (days) <input type="number" name="valid_days" min="0" value="30"><small>Must be redeemed within. 0 = forever</small></label>
+      <label>Download (kbps) <input type="number" name="down_kbps" min="0" value="0"><small>0 = use profile setting</small></label>
+      <label>Upload (kbps) <input type="number" name="up_kbps" min="0" value="0"><small>0 = use profile setting</small></label>
+      <label>Data cap (MB) <input type="number" name="data_mb" min="0" value="0"><small>0 = use profile setting</small></label>
+      <label>Code length <input type="number" name="length" min="6" max="16" value="8"></label>
+    </div>
+    <div class="grid2">
+      <label>Only valid on
+        <select name="profile_id"><option value="">Any SSID / profile</option>
+          <% profiles.forEach(function (p) { %><option value="<%= p.id %>"><%= p.name %> (<%= p.ssidList.join(', ') || 'no SSID' %>)</option><% }) %>
+        </select></label>
+      <label>Batch name <input name="batch" placeholder="e.g. Conference Oct 2026 (optional)"></label>
+    </div>
+    <label>Note <input name="note" placeholder="Optional note shown in the list"></label>
+    <div><button class="btn primary">Generate</button></div>
+  </form>
+</details>
+
+<div class="filters">
+  <form method="get" action="/admin/vouchers" class="inline">
+    <select name="batch" onchange="this.form.submit()">
+      <option value="">All batches (latest 1000)</option>
+      <% batches.forEach(function (b) { %><option value="<%= b.batch %>" <%= b.batch === batch ? 'selected' : '' %>><%= b.batch %> (<%= b.n %>)</option><% }) %>
+    </select>
+    <select name="status" onchange="this.form.submit()">
+      <% ['all','unused','active','used','expired','disabled'].forEach(function (s) { %><option value="<%= s %>" <%= s === status ? 'selected' : '' %>><%= s %></option><% }) %>
+    </select>
+  </form>
+  <% if (batch) { %>
+    <a class="btn" href="/admin/vouchers/print?batch=<%= encodeURIComponent(batch) %>" target="_blank">🖨 Print batch</a>
+    <a class="btn" href="/admin/vouchers.csv?batch=<%= encodeURIComponent(batch) %>">Export CSV</a>
+    <form method="post" action="/admin/vouchers/delete-batch" data-confirm="Delete every voucher in “<%= batch %>”?"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="batch" value="<%= batch %>"><button class="btn danger">Delete batch</button></form>
+  <% } else { %>
+    <a class="btn" href="/admin/vouchers.csv">Export all CSV</a>
+  <% } %>
+</div>
+
+<div class="table-wrap">
+<table class="table">
+  <thead><tr><th>Code</th><th>Duration</th><th>Uses</th><th>Limits</th><th>Profile</th><th>Batch / note</th><th>Status</th><th></th></tr></thead>
+  <tbody>
+  <% if (!rows.length) { %><tr><td colspan="8" class="muted">No vouchers.</td></tr><% } %>
+  <% rows.forEach(function (v) {
+      const dur = v.minutes % 1440 === 0 ? (v.minutes / 1440) + ' day(s)' : v.minutes % 60 === 0 ? (v.minutes / 60) + ' hour(s)' : v.minutes + ' min';
+      const prof = profiles.find(function (p) { return p.id === v.profile_id; }); %>
+    <tr class="<%= v.enabled ? '' : 'dim' %>">
+      <td><code class="code"><%= v.display %></code></td>
+      <td><%= dur %></td>
+      <td><%= v.uses %> / <%= v.max_uses || '∞' %></td>
+      <td class="small"><%= v.down_kbps ? '↓' + v.down_kbps + 'k ' : '' %><%= v.up_kbps ? '↑' + v.up_kbps + 'k ' : '' %><%= v.data_mb ? v.data_mb + 'MB' : '' %><%= !v.down_kbps && !v.up_kbps && !v.data_mb ? '—' : '' %></td>
+      <td><%= prof ? prof.name : 'Any' %></td>
+      <td class="small"><%= v.batch %><% if (v.note) { %><div class="muted"><%= v.note %></div><% } %></td>
+      <td><span class="pill s-<%= v.status %>"><%= v.status %></span></td>
+      <td class="nowrap">
+        <form method="post" action="/admin/vouchers/<%= v.id %>/toggle" class="inline-form"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn sm"><%= v.enabled ? 'Disable' : 'Enable' %></button></form>
+        <form method="post" action="/admin/vouchers/<%= v.id %>/delete" class="inline-form" data-confirm="Delete voucher <%= v.display %>?"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn sm danger">Delete</button></form>
+      </td>
+    </tr>
+  <% }) %>
+  </tbody>
+</table>
+</div>
+<%- include('partials/foot') %>

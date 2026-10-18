@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Continue signing in</title>
+<link rel="stylesheet" href="/static/portal.css">
+<style><%- profile.design_css %></style>
+</head>
+<body<%- bodyAttrs %>>
+<%- bodyHtml %>
+<div id="cp-login" class="cp-login cp-theme-<%= profile.options.widget_theme === 'dark' ? 'dark' : 'light' %>" style="--cp-accent: <%= profile.options.accent %>">
+  <div class="cp-grace">
+    <div class="cp-grace-ico"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M9 2h6"/></svg></div>
+    <h2>You have <%= minutesLeft %> minute<%= minutesLeft === 1 ? '' : 's' %> to sign in</h2>
+    <p>We've switched on internet for this device so you can finish signing in with <b><%= providerLabel %></b>, including approving it in <%= providerType === 'microsoft' ? 'Microsoft Authenticator' : 'your authenticator app' %>.</p>
+    <div class="cp-grace-tip">
+      <b>If this window closes</b> when you open your authenticator app, open <b>Safari</b> or <b>Chrome</b> and go to
+      <span class="cp-grace-host"><%= host %></span> to carry on where you left off.
+    </div>
+    <a class="cp-btn cp-btn-primary" href="<%= url %>"><span class="cp-btn-label">Continue to <%= providerLabel %></span></a>
+  </div>
+</div>
+<script src="/static/portal.js"></script>
+</body>
+</html>

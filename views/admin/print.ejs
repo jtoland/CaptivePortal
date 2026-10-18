@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Vouchers · <%= batch %></title>
+<style>
+  body { font-family: -apple-system, Segoe UI, Roboto, sans-serif; margin: 16px; color: #0f172a; }
+  .bar { margin-bottom: 16px; display: flex; gap: 12px; align-items: center; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }
+  .v { border: 1px dashed #94a3b8; border-radius: 10px; padding: 14px; text-align: center; break-inside: avoid; }
+  .v .net { font-size: 12px; color: #64748b; text-transform: uppercase; letter-spacing: .08em; }
+  .v .code { font: 700 22px ui-monospace, Menlo, monospace; letter-spacing: .1em; margin: 8px 0; }
+  .v .meta { font-size: 12px; color: #475569; }
+  @media print { .bar { display: none; } body { margin: 0; } }
+</style>
+</head>
+<body>
+<div class="bar"><button onclick="window.print()">Print</button><span><%= rows.length %> vouchers · <%= batch %></span></div>
+<div class="grid">
+<% rows.forEach(function (v) {
+  const dur = v.minutes % 1440 === 0 ? (v.minutes / 1440) + (v.minutes === 1440 ? ' day' : ' days') : v.minutes % 60 === 0 ? (v.minutes / 60) + (v.minutes === 60 ? ' hour' : ' hours') : v.minutes + ' minutes'; %>
+  <div class="v">
+    <div class="net">WiFi<%= v.profile && v.profile.ssidList.length ? ' · ' + v.profile.ssidList[0] : '' %></div>
+    <div class="code"><%= v.display %></div>
+    <div class="meta"><%= dur %> access<%= v.max_uses > 1 ? ' · up to ' + v.max_uses + ' devices' : '' %><%= v.valid_until ? ' · use by ' + new Date(v.valid_until * 1000).toLocaleDateString('en-GB') : '' %></div>
+  </div>
+<% }) %>
+</div>
+</body>
+</html>
